@@ -153,6 +153,17 @@ CHAMFER_DY = 0.0    # 0 -> no chamfer: clean foredeck that matches the center gu
 # -ve = concave (hollow). The hull lines alone run ~0.3" hollow; this fills it out.
 BOW_CONVEX = 0.6
 
+# --- Concave bow flare (water-shedding hollow above the spray rail) -------------
+# The bow topside gets a shallow hollow (concave flare) between the spray rail and
+# the sheer: spray that climbs past the rail hits an inboard-curving panel and is
+# thrown DOWN/outboard instead of running up onto the foredeck. Applied to the BOW
+# piece only, and faded in from ZERO at the split so the x=BOW_SPLIT interface
+# section is bit-for-bit the same contour the center presents (flush mate).
+BOW_FLARE_HOLLOW = 1.0   # design in of max inboard hollow (0 = old straight flare)
+BOW_FLARE_POW = 1.5      # longitudinal blend: g = ((x-split)/(LOA-split))**this
+BOW_FLARE_F0 = 0.45      # hollow starts above this topside fraction (rail lip stays proud)
+BOW_FLARE_CLAMP = 0.6    # guard: hollow_amt <= this * local y (section can never cross y=0)
+
 # Foredeck transverse camber (crown) in design in. 0 = flat deck. (Was tried at 2.0
 # but the centerline hump read wrong; keep the deck flat.)
 BOW_CAMBER = 0.0
@@ -229,8 +240,53 @@ BOLT_WEDGE_X = list(KEY_X)  # a column of bolts per dovetail key, to pin it from
 BOLT_WEDGE_BELOW = [2.5, 7.5]  # z-offsets below sheer: 2 bolts per key -> 2x3x2 = 12
 BOLT_WEDGE_IN = 2.5      # cylinder reach inboard of the mating plane (into center)
 BOLT_WEDGE_OUT = 2.5     # cylinder reach outboard of the mating plane (into wedge)
-BOLT_BOW_Z = [9.0, 13.0, 17.0, 20.0]  # bow<->center bolt heights -> 4 x 2 sides = 8
+# Bow<->center bolts. With the vertical drop-in keys (BOW_KEYS) carrying the fore-aft
+# lock, these are ANTI-LIFT ONLY -- like the wedge bolts -- so two heights per side is
+# enough. Given as REAL inches (13" and 19" above the keel) -> design units.
+BOLT_BOW_Z = [13.0 / DESIGN_SCALE, 19.0 / DESIGN_SCALE]   # -> 2 x 2 sides = 4 bolts
 BOLT_BOW_HALF = 3.0      # cylinder half-length along X about the x=BOW_SPLIT face
+                         # (must exceed FLANGE_T so the bolts pierce BOTH flange rings)
+
+# --- Interface flange at the bow/center joint (bolt-grip bulkhead ring) ---------
+# The bow<->center joint is two thin (SKIN) shell edges butted at x=BOW_SPLIT; 8 bolts
+# through 7 mm of ASA is not enough grip. So each piece gets a bulkhead RING at the
+# interface: outer boundary = that piece's own outer section (so nothing protrudes past
+# the skin), inner boundary = the same contour drawn FLANGE_W inboard. The center's ring
+# lives entirely in x = [60-FLANGE_T, 60] and the bow's entirely in x = [60, 60+FLANGE_T],
+# so the two rings butt face-to-face at the split and never interfere.
+IFACE_FLANGE = True
+FLANGE_W = 2.0 / DESIGN_SCALE     # 2.0" REAL ring width, inboard from the shell
+FLANGE_T = 1.5 / DESIGN_SCALE     # 1.5" REAL axial thickness (each side of the joint)
+FLANGE_GAP = 0.05                 # design in: pull the ring's outer edge just inside the
+                                  # skin so the union overlaps solid (no coincident faces)
+FLANGE_NX = 5                     # loft stations across the flange thickness
+
+# --- Vertical drop-in dovetail KEYS at the bow/center face (the wedge-key trick, rotated)
+# Same construction as add_vertical_dovetails: ONE shared prism per key, SUBTRACTED from
+# the center (socket) and UNIONED into the bow (tongue), so they mate exactly. The prism
+# is extruded in Z, so the bow still assembles by dropping straight DOWN; its horizontal
+# section is a dovetail flared along X -- a narrow mouth at the x=BOW_SPLIT face widening
+# in y going AFT into the center -- so once seated the bow cannot be pulled forward (+x).
+# The center-side socket is cut as a FULL-HEIGHT channel (open at the rim) so the tongue
+# rides down it; the bow-side tongue only occupies its working z-band.
+BOW_KEYS = True
+BKEY_DEPTH = 0.8      # flared back reaches this far AFT of x=BOW_SPLIT (design in)
+BKEY_STUB = 0.6       # tongue stub reaches this far FORWARD into the bow (design in)
+BKEY_SILL = 0.15      # socket floor sits this far BELOW the tongue -> never bottoms out
+BKEY_BOSS = 0.55      # local backing boss kept around each socket/tongue (design in)
+# Key 1 -- LOW CENTERLINE. The point of the whole change: it locks the bottom of the joint
+# BELOW the waterline, where no bolt may penetrate. Hosted by a local boss standing on the
+# cockpit sole / storage sole, so the socket never reaches the watertight bottom skin.
+BKEY_CTR_Z0 = 1.1     # design z of the centreline tongue's bottom
+BKEY_CTR_H = 2.4      # its height
+BKEY_CTR_MOUTH = 0.7  # half-width in y at the mouth
+BKEY_CTR_BACK = 1.1   # half-width in y at the flared back (> MOUTH => dovetail)
+# Keys 2+3 -- one per side at mid-height, hosted by the flange ring (+ an inboard boss).
+BKEY_SIDE_Z0 = 9.4    # above the waterline, below the lower bolt
+BKEY_SIDE_H = 3.2
+BKEY_SIDE_MOUTH = 0.42
+BKEY_SIDE_BACK = 0.62
+BKEY_SIDE_EDGE = 0.15  # keep the key's outboard edge this far inside the flange's outer face
 
 # Transom: a solid slab closing the center's stern (the cockpit is otherwise open aft).
 TRANSOM_THICK = 1.5 / DESIGN_SCALE   # 1.5" REAL thick (solid enough for an outboard clamp)
@@ -486,9 +542,31 @@ def wedge_section(hull, x):
 # ------------------------------------------------------------------
 # BOW cross-section (simplified sealed solid with a flat deck)
 # ------------------------------------------------------------------
-def bow_half_outer(hull, x, rail_f):
-    """Like hull.half_outer but with the spray-rail bulge scaled by rail_f (0..1), so
-    the bow can fade the rail out forward and the rounded nose doesn't bulb."""
+def flare_bump(f):
+    """Smooth 0..1 envelope for the concave bow flare over the topside fraction f
+    (0 = chine, 1 = sheer). ZERO at/below BOW_FLARE_F0 (the spray-rail panel and its
+    lip are untouched -> the rail stays proud), peaks at 1 midway between F0 and the
+    sheer (f ~ 0.72), and returns to ZERO at f = 1 so the SHEER WIDTH IS UNCHANGED."""
+    if f <= BOW_FLARE_F0:
+        return 0.0
+    return float(np.sin(np.pi * (f - BOW_FLARE_F0) / (1.0 - BOW_FLARE_F0)) ** 2)
+
+
+# how much the guard actually had to clamp, worst case (design in) -- reported by main()
+FLARE_CLAMP_MAX = 0.0
+
+
+def bow_half_outer(hull, x, rail_f, hollow=0.0):
+    """Like hull.half_outer but (a) the spray-rail bulge is scaled by rail_f (0..1) so
+    the bow can fade the rail out forward and the rounded nose doesn't bulb, and (b) the
+    topside above the rail is pulled INBOARD by up to `hollow` design inches -> a concave
+    (hollow) flare that sheds climbing spray instead of feeding it onto the deck.
+
+    The hollow is applied on top of the rail bulge, so the rail lip stays proud; it is
+    zero at f<=BOW_FLARE_F0 and zero again at the sheer, so neither the chine nor the
+    sheer half-width moves. z is untouched, so the half-section stays z-monotonic and
+    therefore cannot self-intersect; y is additionally clamped >0 by BOW_FLARE_CLAMP."""
+    global FLARE_CLAMP_MAX
     bhw, cz, shw, sz, dr, kz = hull.interp(x)
     pts = []
     for i in range(h2.N_BOTTOM + 1):
@@ -500,13 +578,32 @@ def bow_half_outer(hull, x, rail_f):
         zv = cz + f * (sz - cz)
         bulge = rail_f * h2.SPRAY_RAIL_OUTWARD * np.exp(
             -0.5 * ((f - h2.SPRAY_RAIL_HEIGHT_FRAC) / 0.2) ** 2)
-        pts.append((yl + bulge, zv))
+        y = yl + bulge
+        if hollow > 0.0:
+            want = hollow * flare_bump(f)
+            if want > 0.0:
+                lim = BOW_FLARE_CLAMP * y          # guard: never eat into the centerline
+                if want > lim:
+                    FLARE_CLAMP_MAX = max(FLARE_CLAMP_MAX, want - lim)
+                    want = lim
+                y -= want
+        pts.append((y, zv))
     return pts
 
 
-def bow_section(hull, x):
+def bow_flare_g(x):
+    """Longitudinal blend of the concave flare: EXACTLY 0 at x=BOW_SPLIT (so the bow's
+    aft face is the unmodified contour the center presents -> flush mate) growing to 1
+    at the stem."""
+    t = max(0.0, min(1.0, (x - BOW_SPLIT) / (LOA - BOW_SPLIT)))
+    return t ** BOW_FLARE_POW
+
+
+def bow_section(hull, x, hollow=None):
     rail_f = min(1.0, max(0.0, (LOA - x) / BOW_RAIL_FADE))     # full rail; fade near stem
-    o = resample(bow_half_outer(hull, x, rail_f), NP)          # keel..stbd sheer
+    if hollow is None:
+        hollow = BOW_FLARE_HOLLOW * bow_flare_g(x)             # 0 at the split
+    o = resample(bow_half_outer(hull, x, rail_f, hollow), NP)  # keel..stbd sheer
     # Gently convex plan-view sheer: scale each section to a (chord + sine bulge)
     # target half-width so the top-down bow outline bulges out slightly instead of
     # running hollow. 0 at the split and the stem -> still matches the center & tip.
@@ -674,7 +771,8 @@ def _bow_profile_hw(hull, x):
     """The bow's stbd outer half-width vs height at station x (z increasing): replicates
     bow_section's rail-fade + convex scaling. Returns (zs, ys) arrays."""
     rail_f = min(1.0, max(0.0, (LOA - x) / BOW_RAIL_FADE))
-    o = resample(bow_half_outer(hull, x, rail_f), NP)
+    o = resample(bow_half_outer(hull, x, rail_f,
+                                BOW_FLARE_HOLLOW * bow_flare_g(x)), NP)
     t = (x - BOW_SPLIT) / (LOA - BOW_SPLIT)
     sh0, sh1 = hull.interp(BOW_SPLIT)[2], hull.interp(LOA)[2]
     target = sh0 * (1 - t) + sh1 * t + BOW_CONVEX * np.sin(np.pi * t)
@@ -735,6 +833,160 @@ def build_bow_cavity(hull):
         xs.append(xs[-1] + dx)
         sections.append([(lcy + (y - lcy) * f, lcz + (z - lcz) * f) for (y, z) in last])
     return to_trimesh(loft(np.array(xs), sections))
+
+
+# ------------------------------------------------------------------
+# INTERFACE FLANGE  (bolt-grip bulkhead ring at the bow/center joint, x=BOW_SPLIT)
+# ------------------------------------------------------------------
+def iface_contour(hull, x, piece):
+    """The full closed outer section (y-z) of `piece` at station x: hull V both sides,
+    up to the sheer, closed across the top by the deck line at sz. At x=BOW_SPLIT the
+    center's and the bow's contours are the SAME curve (the hull outer half-section --
+    no mating wall there, and the flare hollow blends in from zero), which is why the
+    two flange rings mate flush. Only the sampling differs."""
+    if piece == "bow":
+        return bow_section(hull, x)
+    oh = center_outer_half(hull, x)                    # keel..gunwale top, stbd (y>=0)
+    sz = hull.interp(x)[3]
+    shw = oh[-1][0]
+    deck = [(shw - 2.0 * shw * (i / (N_DECK + 1)), sz) for i in range(1, N_DECK + 1)]
+    return list(oh) + deck + [(-y, z) for (y, z) in reversed(oh)][:-1]
+
+
+def inset_contour(poly, d):
+    """Shrink a closed (y,z) contour by moving every vertex distance d toward the
+    contour's centroid. Same vertex count (so the ring lofts as a quad strip) and, for
+    these fat hull sections, guaranteed to stay inside and simple -- verified by the
+    area check below. Returns None if d is too big for this section."""
+    cy = sum(p[0] for p in poly) / len(poly)
+    cz = sum(p[1] for p in poly) / len(poly)
+    out = []
+    for (y, z) in poly:
+        dy, dz = cy - y, cz - z
+        r = (dy * dy + dz * dz) ** 0.5
+        if r <= d + 0.05:                             # vertex closer to centre than d
+            return None
+        out.append((y + dy / r * d, z + dz / r * d))
+    return out
+
+
+def _poly_area(poly):
+    a = 0.0
+    for i in range(len(poly)):
+        y0, z0 = poly[i]
+        y1, z1 = poly[(i + 1) % len(poly)]
+        a += y0 * z1 - y1 * z0
+    return 0.5 * a
+
+
+def loft_ring(xs, outers, inners, closed=True):
+    """Closed manifold tube swept along xs from an (outer, inner) section pair.
+
+    closed=True  -> the section is an ANNULUS (outer and inner are closed loops); used for
+                    the BOW ring, whose section really is a closed hoop (it has a deck).
+    closed=False -> the section is an open BAND: outer/inner are matching OPEN paths and
+                    the band is closed off by a wall at each of the two path ends. Used for
+                    the CENTER, which is an open tub -- its flange is a U, NOT a hoop, so
+                    nothing spans the cockpit at deck height to block the bow dropping in.
+
+    outers[k]/inners[k] must have the same, constant vertex count and index correspondence."""
+    n = len(outers[0])
+    m = 2 * n
+    V = []
+    for x, o, i in zip(xs, outers, inners):
+        V += [(x, y, z) for (y, z) in o]
+        V += [(x, y, z) for (y, z) in i]
+    F = []
+    last_j = n if closed else n - 1
+    for k in range(len(xs) - 1):
+        b0, b1 = k * m, (k + 1) * m
+        for j in range(last_j):
+            jn = (j + 1) % n
+            F += [[b0 + j, b1 + jn, b0 + jn], [b0 + j, b1 + j, b1 + jn]]          # outer skin
+            F += [[b0 + n + j, b0 + n + jn, b1 + n + jn],                          # inner bore
+                  [b0 + n + j, b1 + n + jn, b1 + n + j]]
+        if not closed:                                    # wall closing each open band end
+            for j, flip in ((0, False), (n - 1, True)):
+                a, bb, c, d = b0 + j, b1 + j, b1 + n + j, b0 + n + j
+                F += ([[a, c, bb], [a, d, c]] if flip else [[a, bb, c], [a, c, d]])
+    for b, flip in ((0, True), ((len(xs) - 1) * m, False)):                        # end caps
+        for j in range(last_j):
+            jn = (j + 1) % n
+            a, bb, c, d = b + j, b + jn, b + n + jn, b + n + j
+            F += ([[a, c, bb], [a, d, c]] if flip else [[a, bb, c], [a, c, d]])
+    return V, F
+
+
+def _center_band_idx(hull, x):
+    """Indices into iface_contour(...,'center') that walk the HULL path only -- port sheer
+    -> keel -> stbd sheer -- skipping the deck-line points. The center's flange follows
+    this open path, so its ring is a U with nothing across the top."""
+    k = len(center_outer_half(hull, x))
+    total = k + N_DECK + (k - 1)
+    return list(range(k + N_DECK, total)) + list(range(0, k))
+
+
+def _contour_hw(poly, z):
+    """Starboard half-width of a closed (y,z) contour at height z."""
+    r = [p for p in poly if p[0] >= 0.0]
+    zs = np.array([p[1] for p in r])
+    ys = np.array([p[0] for p in r])
+    o = np.argsort(zs)
+    return float(np.interp(z, zs[o], ys[o]))
+
+
+def flange_band(hull, z):
+    """(y_inner, y_outer) of the flange ring material that BOTH rings share at height z,
+    intersected over the whole flange x-span (the hull tapers, so the bow ring sits a
+    little inboard of the center ring). A bolt centred in this band is buried in solid
+    flange for its entire length. Returns None if the rings don't overlap at this z."""
+    lo, hi = -1e9, 1e9
+    spans = [("center", np.linspace(BOW_SPLIT - FLANGE_T, BOW_SPLIT, FLANGE_NX)),
+             ("bow", np.linspace(BOW_SPLIT, BOW_SPLIT + FLANGE_T, FLANGE_NX))]
+    for piece, xs in spans:
+        for x in xs:
+            base = iface_contour(hull, x, piece)
+            oi = inset_contour(base, FLANGE_GAP + FLANGE_W)
+            oo = inset_contour(base, FLANGE_GAP)
+            if oi is None or oo is None:
+                return None
+            lo = max(lo, _contour_hw(oi, z))
+            hi = min(hi, _contour_hw(oo, z))
+    return (lo, hi) if hi - lo > 2.2 * BOLT_R else None
+
+
+def build_iface_flange(hull, piece):
+    """The bolt-grip bulkhead ring for `piece` at the bow/center interface.
+
+      center -> occupies x = [BOW_SPLIT-FLANGE_T, BOW_SPLIT]
+      bow    -> occupies x = [BOW_SPLIT, BOW_SPLIT+FLANGE_T]
+
+    Neither crosses x=BOW_SPLIT, so the assembled pieces never interfere. The ring's
+    outer boundary follows the piece's OWN local outer section (pulled FLANGE_GAP inside
+    the skin) so nothing protrudes past the hull and the union always overlaps solid
+    shell material; the inner boundary is that contour drawn FLANGE_W further inboard.
+    Returns a closed watertight mesh (or None if the section is too small)."""
+    if piece == "bow":
+        xs = list(np.linspace(BOW_SPLIT, BOW_SPLIT + FLANGE_T, FLANGE_NX))
+    else:
+        xs = list(np.linspace(BOW_SPLIT - FLANGE_T, BOW_SPLIT, FLANGE_NX))
+    outers, inners = [], []
+    for x in xs:
+        base = iface_contour(hull, x, piece)
+        o = inset_contour(base, FLANGE_GAP)
+        i = inset_contour(base, FLANGE_GAP + FLANGE_W)
+        if o is None or i is None:
+            return None
+        ao, ai = _poly_area(o), _poly_area(i)
+        if ao * ai <= 0 or abs(ai) >= abs(ao):        # inner flipped/ballooned -> unsafe
+            return None
+        if piece == "center":                         # drop the deck line -> open U band
+            idx = _center_band_idx(hull, x)
+            o = [o[j] for j in idx]
+            i = [i[j] for j in idx]
+        outers.append(o)
+        inners.append(i)
+    return to_trimesh(loft_ring(np.array(xs), outers, inners, closed=(piece == "bow")))
 
 
 # ------------------------------------------------------------------
@@ -891,6 +1143,108 @@ def add_vertical_dovetails(hull, pieces):
     return out
 
 
+def _bow_key_poly(yk, mouth, back):
+    """Horizontal (x,y) section of a bow<->center key: a dovetail flared along X. Narrow
+    mouth (+/-mouth) at the x=BOW_SPLIT face, widening to +/-back at x=BOW_SPLIT-BKEY_DEPTH
+    (AFT, inside the center) -> the bow cannot be pulled forward. A BKEY_STUB stub runs
+    forward of the face so the tongue has a root in the bow. Same vertex order as
+    _key_prism, just with the roles of x and y swapped."""
+    return [(BOW_SPLIT + BKEY_STUB, yk - mouth), (BOW_SPLIT + BKEY_STUB, yk + mouth),
+            (BOW_SPLIT, yk + mouth), (BOW_SPLIT - BKEY_DEPTH, yk + back),
+            (BOW_SPLIT - BKEY_DEPTH, yk - back), (BOW_SPLIT, yk - mouth)]
+
+
+def bow_key_specs(hull):
+    """The three drop-in keys on the bow/center face, sized against the ACTUAL local
+    material (flange ring + sole), in design units. Each spec carries the key section plus
+    the local backing boss that guarantees surrounding material for the socket."""
+    specs = []
+
+    # --- key 1: low centreline, below the waterline, standing on the sole ---
+    sole = max(thick_floor_inner(hull, x)[0][1]                 # cockpit sole top, y=0
+               for x in (BOW_SPLIT - BKEY_DEPTH - BKEY_BOSS, BOW_SPLIT))
+    z0 = max(BKEY_CTR_Z0, sole + 0.35)
+    specs.append(dict(
+        name="centre", yk=0.0, mouth=BKEY_CTR_MOUTH, back=BKEY_CTR_BACK,
+        z0=z0, z1=z0 + BKEY_CTR_H,
+        boss_y=(-(BKEY_CTR_BACK + BKEY_BOSS), BKEY_CTR_BACK + BKEY_BOSS),
+        boss_z=(min(sole - 0.2, z0 - BKEY_SILL - 0.4), z0 + BKEY_CTR_H + BKEY_BOSS)))
+
+    # --- keys 2+3: one per side at mid-height, inside the flange ring ---
+    z0 = BKEY_SIDE_Z0
+    band = flange_band(hull, z0)                                # narrowest point of the key
+    if band is not None:
+        y_out = band[1] - BKEY_SIDE_EDGE                        # stay inside the skin
+        yk = y_out - BKEY_SIDE_BACK
+        for s in (+1, -1):
+            specs.append(dict(
+                name=f"side{'S' if s > 0 else 'P'}", yk=s * yk,
+                mouth=BKEY_SIDE_MOUTH, back=BKEY_SIDE_BACK,
+                z0=z0, z1=z0 + BKEY_SIDE_H,
+                # boss grows INBOARD only -- outboard is the hull skin, which must not move
+                boss_y=tuple(sorted((s * y_out,
+                                     s * (yk - BKEY_SIDE_BACK - BKEY_BOSS)))),
+                boss_z=(z0 - BKEY_SILL - 0.4, z0 + BKEY_SIDE_H + BKEY_BOSS)))
+    return specs
+
+
+def _key_boss(spec, x0, x1):
+    """Local backing block for one key, spanning x0..x1."""
+    import trimesh
+    y0, y1 = spec["boss_y"]
+    z0, z1 = spec["boss_z"]
+    T = np.eye(4)
+    T[:3, 3] = [0.5 * (x0 + x1), 0.5 * (y0 + y1), 0.5 * (z0 + z1)]
+    return trimesh.creation.box(extents=[x1 - x0, y1 - y0, z1 - z0], transform=T)
+
+
+def add_bow_keys(hull, pieces):
+    """Cut a full-height flared channel in the CENTER and add the matching tongue to the
+    BOW at every key station. Center and bow use the SAME prism section, so they mate
+    exactly. A backing boss is unioned into each piece FIRST so the socket is surrounded
+    by material and never reaches the watertight skin. Returns (pieces, specs)."""
+    import trimesh
+    out = dict(pieces)
+    sz = hull.interp(BOW_SPLIT)[3]
+    for spec in bow_key_specs(hull):
+        poly = _bow_key_poly(spec["yk"], spec["mouth"], spec["back"])
+        # CENTER: boss, then a channel open at the rim so the tongue can ride down it
+        boss_c = _key_boss(spec, BOW_SPLIT - BKEY_DEPTH - BKEY_BOSS, BOW_SPLIT)
+        chan = _prism(poly, spec["z0"] - BKEY_SILL, sz + 1.0)
+        c = out["center"].union(boss_c).difference(chan)
+        trimesh.repair.fix_normals(c)
+        out["center"] = c
+        # BOW: boss, then the tongue (only its working z-band)
+        boss_b = _key_boss(spec, BOW_SPLIT, BOW_SPLIT + BKEY_STUB + BKEY_BOSS)
+        tongue = _prism(poly, spec["z0"], spec["z1"])
+        b = out["bow"].union(boss_b).union(tongue)
+        trimesh.repair.fix_normals(b)
+        out["bow"] = b
+    return out, bow_key_specs(hull)
+
+
+def check_key_sweep(pieces, n=7, lift=26.0):
+    """Assembly-path check: lift the finished bow straight up in n steps from seated to
+    fully clear and boolean-intersect it with the finished center at each step. Every step
+    must be ~zero volume, or some tongue/boss fouls the center on the way down. Returns
+    (max_overlap_in3, at_dz)."""
+    worst, at, steps = -1.0, 0.0, []
+    for dz in np.linspace(0.0, lift, n):
+        b = pieces["bow"].copy()
+        b.apply_translation([0.0, 0.0, dz])
+        try:
+            inter = pieces["center"].intersection(b)
+            v = 0.0 if (inter.is_empty or len(inter.faces) == 0) else abs(inter.volume)
+        except Exception:
+            v = 0.0                                   # empty boolean -> no overlap
+        if not np.isfinite(v):
+            v = 0.0
+        steps.append((dz, v))
+        if v > worst:
+            worst, at = v, dz
+    return max(worst, 0.0), at, steps
+
+
 def add_bolt_holes(hull, pieces):
     """Drill the above-waterline bolts. Each bolt is ONE cylinder subtracted from
     BOTH mating pieces, so the holes are coaxial and a bolt passes straight through.
@@ -920,6 +1274,10 @@ def add_bolt_holes(hull, pieces):
         yo = float(np.interp(z, ozs, oys))
         yi = float(np.interp(z, izs, iys))
         ym = 0.5 * (yo + yi)                                # mid-wall, where both pieces share material
+        if IFACE_FLANGE:
+            band = flange_band(hull, z)
+            if band is not None:
+                ym = 0.5 * (band[0] + band[1])              # centre of the shared flange ring
         for side in (+1, -1):
             cyl = _bolt_cyl([BOW_SPLIT - BOLT_BOW_HALF, side * ym, z],
                             [BOW_SPLIT + BOLT_BOW_HALF, side * ym, z])
@@ -1157,6 +1515,282 @@ def render(pieces, out_path):
     fig.suptitle("Rev-3 Transportable Split  -  42\" center barge + 2 wedge pods + bow",
                  fontsize=15, fontweight="bold")
     plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.savefig(str(out_path), dpi=140, bbox_inches="tight")
+    plt.close()
+
+
+def _shaded_mesh(ax, m, base="#6DC8EC", light=(0.45, 0.75, 0.5), alpha=1.0):
+    """Draw EVERY face of m with simple diffuse shading -- unlike _add_mesh (which drops
+    half the faces for speed) this renders a solid surface, so concave curvature reads."""
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+    import matplotlib.colors as mc
+    L = np.array(light, float); L /= np.linalg.norm(L)
+    sh = np.clip(np.einsum('ij,j->i', m.face_normals, L), 0.0, 1.0)
+    rgb = np.array(mc.to_rgb(base))
+    cols = np.clip(0.25 + 0.85 * sh[:, None], 0, 1) * rgb[None, :]
+    tris = m.vertices[m.faces]
+    pc = Poly3DCollection(tris, facecolors=np.clip(cols, 0, 1), edgecolor="none",
+                          alpha=alpha)
+    pc.set_zsort("average")
+    ax.add_collection3d(pc)
+
+
+def render_bow_flare(hull, out_path):
+    """Half-sections (y vs z, REAL inches) at 4 bow stations, overlaying the straight
+    topside (BOW_FLARE_HOLLOW=0) against 1.0 and 1.5, with the spray rail and the 7"
+    waterline marked -- so the hollow above the rail is directly comparable."""
+    import matplotlib.pyplot as plt
+    s = DESIGN_SCALE
+    stations = (66.0, 78.0, 90.0, 100.0)
+    variants = ((0.0, "--", 1.6, "#9aa4ae", "hollow 0.0 (straight flare)"),
+                (1.0, "-", 2.4, "#0b6fa4", "hollow 1.0 (this build)"),
+                (1.5, ":", 2.2, "#c0392b", "hollow 1.5"))
+
+    fig, axes = plt.subplots(1, 4, figsize=(20, 6.2))
+    for ax, x in zip(axes, stations):
+        bhw, cz, shw, sz, dr, kz = hull.interp(x)
+        for H, ls, lw, col, lab in variants:
+            sec = bow_section(hull, x, hollow=H * bow_flare_g(x))
+            half = sec[:NP]                                   # keel .. stbd sheer
+            ax.plot([s * p[0] for p in half], [s * p[1] for p in half],
+                    ls, lw=lw, color=col, label=lab if x == stations[0] else None)
+        # spray-rail height (fraction SPRAY_RAIL_HEIGHT_FRAC up the topside)
+        z_rail = cz + h2.SPRAY_RAIL_HEIGHT_FRAC * (sz - cz)
+        ax.axhline(s * z_rail, color="#e08a00", lw=1.0, ls="-.",
+                   label="spray rail" if x == stations[0] else None)
+        z_f0 = cz + BOW_FLARE_F0 * (sz - cz)
+        ax.axhline(s * z_f0, color="#e08a00", lw=0.7, ls=":",
+                   label="hollow starts (f=%.2f)" % BOW_FLARE_F0 if x == stations[0] else None)
+        ax.axhline(s * (kz + WATERLINE / DESIGN_SCALE), color="#1f77b4", lw=1.2, ls="--",
+                   label='waterline (7" real)' if x == stations[0] else None)
+        ax.axhline(s * cz, color="#bbb", lw=0.7)
+        ax.set_title(f"x = {x:.0f} design  ({s*x:.0f}\" real)\n"
+                     f"g = {bow_flare_g(x):.3f}", fontsize=10, fontweight="bold")
+        ax.set_xlabel("half-beam y (real in)")
+        ax.set_aspect("equal")
+        ax.grid(alpha=0.22)
+    axes[0].set_ylabel("height z (real in)")
+    axes[0].legend(fontsize=8, loc="upper left")
+    fig.suptitle("Concave bow flare -- water-shedding hollow above the spray rail "
+                 "(sheer & chine widths unchanged; ZERO at the x=60 split)",
+                 fontsize=14, fontweight="bold")
+    plt.tight_layout(rect=[0, 0, 1, 0.92])
+    plt.savefig(str(out_path), dpi=140, bbox_inches="tight")
+    plt.close()
+
+
+def render_bow_flare_3d(hull, bow, out_path):
+    """The flared bow alone from a low forward-quarter angle so the concavity reads:
+    (1) the shaded solid, (2) the same view drawn as station curves with the OLD straight
+    flare (grey dashed) overlaid on the new hollow one (blue)."""
+    import matplotlib.pyplot as plt
+    lo, hi = bow.bounds
+
+    def setup(ax, ylim, zoom):
+        ax.set_xlim(lo[0] - 1, hi[0] + 1)
+        ax.set_ylim(*ylim)
+        ax.set_zlim(lo[2] - 1, hi[2] + 1)
+        ax.view_init(elev=6, azim=34)          # camera FORWARD of the stem, stbd, low
+        ax.set_box_aspect([hi[0] - lo[0], ylim[1] - ylim[0], hi[2] - lo[2]], zoom=zoom)
+        ax.set_axis_off()
+
+    fig = plt.figure(figsize=(19, 7.6))
+
+    ax = fig.add_subplot(1, 2, 1, projection="3d")
+    _shaded_mesh(ax, bow, "#8fbcd9", light=(0.22, 0.62, 0.75))   # light from above/outboard
+    setup(ax, (-22, 22), 1.7)
+    ax.set_title("Shaded solid -- forward-quarter, low\n"
+                 "(the shaded crease running aft under the sheer is the hollow)",
+                 fontsize=10, fontweight="bold")
+
+    ax = fig.add_subplot(1, 2, 2, projection="3d")
+    xs = np.linspace(BOW_SPLIT, LOA - NOSE_ROUND - 1.0, 11)
+    for H, col, ls, lw, lab in ((0.0, "#9aa4ae", "--", 1.5, "old: straight flare"),
+                                (BOW_FLARE_HOLLOW, "#0b6fa4", "-", 2.1,
+                                 f"new: hollow {BOW_FLARE_HOLLOW:.1f}")):
+        sheer = []
+        for x in xs:
+            half = bow_section(hull, x, hollow=H * bow_flare_g(x))[:NP]
+            ax.plot([x] * NP, [p[0] for p in half], [p[1] for p in half],
+                    ls, color=col, lw=lw)
+            sheer.append((x, half[-1][0], half[-1][1]))
+        ax.plot([p[0] for p in sheer], [p[1] for p in sheer], [p[2] for p in sheer],
+                ls, color=col, lw=lw, label=lab)
+    setup(ax, (-1, 21), 1.15)
+    ax.set_title("Station curves, stbd half -- hollow vs the straight flare it replaces\n"
+                 "(sheer line, top, is identical in both)", fontsize=10, fontweight="bold")
+    ax.legend(fontsize=9, loc="upper left")
+
+    fig.suptitle(f"Flared bow  (BOW_FLARE_HOLLOW = {BOW_FLARE_HOLLOW:.1f} design in = "
+                 f"{BOW_FLARE_HOLLOW*DESIGN_SCALE:.2f}\" real max hollow, zero at the "
+                 f"x=60 split and at the sheer)", fontsize=14, fontweight="bold")
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
+    plt.savefig(str(out_path), dpi=140, bbox_inches="tight")
+    plt.close()
+
+
+def _plane_segs(m, normal, origin):
+    """Line segments where mesh m crosses a plane (n,2,3), or an empty array."""
+    import trimesh
+    try:
+        segs = trimesh.intersections.mesh_plane(
+            m, plane_normal=np.array(normal, float), plane_origin=np.array(origin, float))
+    except Exception:
+        return np.zeros((0, 2, 3))
+    return np.asarray(segs) if len(segs) else np.zeros((0, 2, 3))
+
+
+def render_iface_flange(hull, pieces, bolts, out_path):
+    """Cutaway of the bow/center interface flange: transverse sections cut through each
+    ring (showing the ring + the drilled bolt holes) and a plan cut at a bolt height
+    showing one bolt tunnelling straight through BOTH rings across x=BOW_SPLIT."""
+    import matplotlib.pyplot as plt
+    s = DESIGN_SCALE
+    zb = BOLT_BOW_Z[1]
+    xc_cut = BOW_SPLIT - FLANGE_T * 0.5      # mid of the center ring
+    xb_cut = BOW_SPLIT + FLANGE_T * 0.5      # mid of the bow ring
+
+    fig = plt.figure(figsize=(20, 7.0))
+
+    for k, (name, xcut, col, ttl) in enumerate((
+            ("center", xc_cut, PIECE_COLORS["center"],
+             f"CENTER ring  (cut at x={xc_cut:.1f} design)"),
+            ("bow", xb_cut, PIECE_COLORS["bow"],
+             f"BOW ring  (cut at x={xb_cut:.1f} design)")), 1):
+        ax = fig.add_subplot(1, 3, k)
+        for a, b in _plane_segs(pieces[name], (1, 0, 0), (xcut, 0, 0))[:, :, 1:]:
+            ax.plot([s * a[0], s * b[0]], [s * a[1], s * b[1]], "-", color=col, lw=1.3)
+        base = iface_contour(hull, BOW_SPLIT, "bow")
+        inn = inset_contour(base, FLANGE_GAP + FLANGE_W)
+        ax.plot([s * p[0] for p in inn] + [s * inn[0][0]],
+                [s * p[1] for p in inn] + [s * inn[0][1]], "--", color="#c0392b", lw=1.0,
+                label=f"ring inner bound (FLANGE_W={FLANGE_W*s:.1f}\" real)")
+        for (kind, _x, y, z) in bolts:
+            if kind == "bow":
+                ax.plot(s * y, s * z, "o", ms=9, mfc="none", mew=1.8, color="#111")
+        ax.plot([], [], "o", ms=9, mfc="none", mew=1.8, color="#111", label="bolt hole")
+        ax.axhline(s * (hull.interp(BOW_SPLIT)[5] + WATERLINE / DESIGN_SCALE),
+                   color="#1f77b4", ls="--", lw=1.0, label='waterline (7" real)')
+        ax.set_aspect("equal"); ax.grid(alpha=0.22)
+        ax.set_title(ttl, fontsize=10, fontweight="bold")
+        ax.set_xlabel("beam y (real in)")
+        if k == 1:
+            ax.set_ylabel("height z (real in)")
+        ax.legend(fontsize=8, loc="lower center")
+
+    # plan cut at a bolt height: both rings + the through-bolt tunnel
+    ax = fig.add_subplot(1, 3, 3)
+    for name in ("center", "bow"):
+        for a, b in _plane_segs(pieces[name], (0, 0, 1), (0, 0, zb))[:, :, :2]:
+            ax.plot([s * a[0], s * b[0]], [s * a[1], s * b[1]], "-",
+                    color=PIECE_COLORS[name], lw=1.3)
+    ax.axvline(s * BOW_SPLIT, color="#111", lw=1.2, ls="--", label="split x=60 (design)")
+    for xx, lbl in ((s * (BOW_SPLIT - FLANGE_T), "center ring aft face"),
+                    (s * (BOW_SPLIT + FLANGE_T), "bow ring fwd face")):
+        ax.axvline(xx, color="#888", lw=0.8, ls=":")
+    for (kind, _x, y, z) in bolts:
+        if kind == "bow" and abs(z - zb) < 1e-6:
+            ax.plot([s * (BOW_SPLIT - BOLT_BOW_HALF), s * (BOW_SPLIT + BOLT_BOW_HALF)],
+                    [s * y, s * y], "-", color="#c0392b", lw=2.2)
+    ax.plot([], [], "-", color="#c0392b", lw=2.2,
+            label=f"bolt axis @ z={zb*s:.1f}\" real")
+    ymb = max(y for (k, _x, y, z) in bolts if k == "bow" and abs(z - zb) < 1e-6)
+    ax.axhspan(s * (ymb - BOLT_R), s * (ymb + BOLT_R), color="#c0392b", alpha=0.12,
+               label=f"drilled hole (2R = {2*BOLT_R*s:.2f}\" real)")
+    ax.annotate("center ring", (s * (BOW_SPLIT - FLANGE_T * 0.5), s * (ymb + 1.4)),
+                ha="center", fontsize=8, color=PIECE_COLORS["center"])
+    ax.annotate("bow ring", (s * (BOW_SPLIT + FLANGE_T * 0.5), s * (ymb + 1.4)),
+                ha="center", fontsize=8, color="#2b8fb8")
+    ax.set_xlim(s * (BOW_SPLIT - 2.4 * FLANGE_T), s * (BOW_SPLIT + 2.4 * FLANGE_T))
+    ymax = max(abs(y) for (k, _x, y, z) in bolts if k == "bow")
+    ax.set_ylim(s * (ymax - 4.0), s * (ymax + 3.0))            # zoom on the stbd joint
+    ax.set_aspect("equal"); ax.grid(alpha=0.22)
+    ax.set_title(f"Plan cut at z={zb*s:.1f}\" real, STBD joint\n"
+                 f"-- one bolt through BOTH rings", fontsize=10, fontweight="bold")
+    ax.set_xlabel("x from transom (real in)"); ax.set_ylabel("beam y (real in)")
+    ax.legend(fontsize=8, loc="upper right")
+
+    fig.suptitle(f"Interface flange: {FLANGE_W*s:.1f}\" wide x {FLANGE_T*s:.1f}\" thick "
+                 f"bulkhead ring on EACH side of the x=60 joint "
+                 f"({2*FLANGE_T*s:.1f}\" of bolt grip, was ~{2*SKIN*s:.2f}\")",
+                 fontsize=14, fontweight="bold")
+    plt.tight_layout(rect=[0, 0, 1, 0.92])
+    plt.savefig(str(out_path), dpi=140, bbox_inches="tight")
+    plt.close()
+
+
+def render_bow_keys(hull, pieces, keys, out_path):
+    """The vertical drop-in keys at the bow/center face: the bow's aft face (tongues +
+    storage opening), the center's forward face (full-height channels through the flange),
+    and a 3D exploded view of the joint."""
+    import matplotlib.pyplot as plt
+    import trimesh
+    s = DESIGN_SCALE
+    wl = s * (hull.interp(BOW_SPLIT)[5] + WATERLINE / DESIGN_SCALE)
+
+    fig = plt.figure(figsize=(21, 7.4))
+
+    for k, (name, xcut, col, ttl) in enumerate((
+            ("bow", BOW_SPLIT + BKEY_STUB * 0.5, PIECE_COLORS["bow"],
+             "BOW aft face -- tongues + storage opening\n(section at "
+             f"x={BOW_SPLIT + BKEY_STUB*0.5:.1f} design, looking forward)"),
+            ("center", BOW_SPLIT - BKEY_DEPTH * 0.5, PIECE_COLORS["center"],
+             "CENTER forward face -- full-height drop-in channels\n(section at "
+             f"x={BOW_SPLIT - BKEY_DEPTH*0.5:.1f} design, looking forward)")), 1):
+        ax = fig.add_subplot(1, 3, k)
+        for a, b in _plane_segs(pieces[name], (1, 0, 0), (xcut, 0, 0))[:, :, 1:]:
+            ax.plot([s * a[0], s * b[0]], [s * a[1], s * b[1]], "-", color=col, lw=1.4)
+        for sp in keys:
+            w = sp["back"] if name == "center" else sp["mouth"]
+            z0, z1 = (sp["z0"] - BKEY_SILL, hull.interp(BOW_SPLIT)[3]) if name == "center" \
+                else (sp["z0"], sp["z1"])
+            ax.add_patch(plt.Rectangle((s * (sp["yk"] - w), s * z0), s * 2 * w,
+                                       s * (z1 - z0), fill=False, ls="--", lw=1.4,
+                                       ec="#c0392b"))
+        ax.plot([], [], "--", color="#c0392b", lw=1.4,
+                label="key channel" if name == "center" else "key tongue")
+        ax.axhline(wl, color="#1f77b4", ls="--", lw=1.1, label='waterline (7" real)')
+        for (kind, _x, y, z) in getattr(render_bow_keys, "_bolts", []):
+            if kind == "bow":
+                ax.plot(s * y, s * z, "o", ms=8, mfc="none", mew=1.6, color="#111")
+        ax.plot([], [], "o", ms=8, mfc="none", mew=1.6, color="#111", label="bolt")
+        ax.set_aspect("equal"); ax.grid(alpha=0.22)
+        ax.set_title(ttl, fontsize=10, fontweight="bold")
+        ax.set_xlabel("beam y (real in)")
+        if k == 1:
+            ax.set_ylabel("height z (real in)")
+        ax.legend(fontsize=8, loc="lower center")
+
+    # 3D exploded view of the joint
+    ax = fig.add_subplot(1, 3, 3, projection="3d")
+    def clip(m, x0, x1):
+        lo, hi = m.bounds
+        T = np.eye(4); T[:3, 3] = [0.5 * (x0 + x1), 0, 0.5 * (lo[2] + hi[2])]
+        b = trimesh.creation.box(
+            extents=[x1 - x0, 2.2 * max(abs(lo[1]), abs(hi[1])), hi[2] - lo[2] + 2],
+            transform=T)
+        try:
+            return m.intersection(b)
+        except Exception:
+            return m
+    cj = clip(pieces["center"], BOW_SPLIT - 5.0, BOW_SPLIT)
+    bj = clip(pieces["bow"], BOW_SPLIT - BKEY_DEPTH - 0.1, BOW_SPLIT + 5.0)
+    bj.apply_translation([7.0, 0.0, 5.0])                     # explode fwd + up
+    _shaded_mesh(ax, cj, PIECE_COLORS["center"], light=(0.5, 0.55, 0.67))
+    _shaded_mesh(ax, bj, PIECE_COLORS["bow"], light=(0.5, 0.55, 0.67))
+    ax.set_xlim(BOW_SPLIT - 6, BOW_SPLIT + 13)
+    ax.set_ylim(-23, 23)
+    ax.set_zlim(-1, 30)
+    ax.view_init(elev=18, azim=38)
+    ax.set_box_aspect([19, 46, 31], zoom=1.5)
+    ax.set_axis_off()
+    ax.set_title("Joint exploded -- bow lifted up & forward off its channels",
+                 fontsize=10, fontweight="bold")
+
+    fig.suptitle("Bow<->center vertical drop-in dovetail keys: 1 low centreline key "
+                 "(BELOW the waterline, where no bolt may go) + 1 per side",
+                 fontsize=14, fontweight="bold")
+    plt.tight_layout(rect=[0, 0, 1, 0.91])
     plt.savefig(str(out_path), dpi=140, bbox_inches="tight")
     plt.close()
 
@@ -1424,6 +2058,7 @@ def main():
     }
 
     pieces = {}
+    flange_vol = {}
     for name, vf in raw.items():
         m = to_trimesh(vf)
         if name.startswith("wedge"):
@@ -1444,11 +2079,36 @@ def main():
             import trimesh
             m = m.difference(build_bow_cavity(hull))       # hollow + dome storage access
             trimesh.repair.fix_normals(m)                  # (no merge_vertices: welds thin wall)
+        if IFACE_FLANGE and name in ("center", "bow"):
+            # Bolt-grip bulkhead ring at the x=BOW_SPLIT joint. NOTE the order: for the
+            # bow this must come AFTER build_bow_cavity, because that cavity hollows the
+            # whole aft face down to a SKIN wall -- cutting it after the union would eat
+            # the ring entirely. Unioning it now leaves the ring as the rim of the storage
+            # opening (the opening stays FLANGE_W smaller but still full-section wide).
+            # Both flanges land before add_bolt_holes, so the bolts drill through them.
+            import trimesh
+            fl = build_iface_flange(hull, name)
+            if fl is not None:
+                m = m.union(fl)
+                trimesh.repair.fix_normals(m)
+                flange_vol[name] = fl.volume
+            else:
+                print(f"  !! interface flange for {name} could not be built")
         pieces[name] = m
 
     if USE_VKEYS:
         print(f"Cutting {N_KEYS} vertical drop-in dovetail keys per side...")
         pieces = add_vertical_dovetails(hull, pieces)
+
+    bkeys = []
+    if BOW_KEYS:
+        print("Cutting vertical drop-in dovetail keys at the bow/center face...")
+        pieces, bkeys = add_bow_keys(hull, pieces)
+        for s in bkeys:
+            print(f"  {s['name']:7} y={s['yk']*DESIGN_SCALE:+6.2f}\" "
+                  f"z={s['z0']*DESIGN_SCALE:5.2f}..{s['z1']*DESIGN_SCALE:5.2f}\" real  "
+                  f"mouth {2*s['mouth']*DESIGN_SCALE:.2f}\" -> back "
+                  f"{2*s['back']*DESIGN_SCALE:.2f}\" over {BKEY_DEPTH*DESIGN_SCALE:.2f}\" of x")
 
     print("Drilling above-waterline bolt holes...")
     pieces, bolts = add_bolt_holes(hull, pieces)
@@ -1463,6 +2123,7 @@ def main():
         pieces[name] = make_manifold(pieces[name])
 
     all_wt = True
+    export_wt = True
     reals = {}
     print("\nPer-piece geometry, AFTER bolt holes (design units, before DESIGN_SCALE):")
     for name, m in pieces.items():
@@ -1471,9 +2132,15 @@ def main():
         if name == "bow" and BOW_HOLLOW:
             print("                 ^ bow is a HOLLOW storage shell with a dome access "
                   "opening aft (still a clean manifold, like a cup)")
-        # Export the REAL boat = design downscaled by DESIGN_SCALE
-        real = m.copy()
-        real.apply_scale(DESIGN_SCALE)
+        # Export the REAL boat = design downscaled by DESIGN_SCALE.
+        # make_manifold has to run AGAIN here: it simulates the float32 round-trip an STL
+        # performs, and that has to be done at the EXPORT scale -- a vertex pair that is
+        # distinct in design units can still collapse once multiplied by DESIGN_SCALE.
+        real = make_manifold(m.copy().apply_scale(DESIGN_SCALE))
+        rwt = real.is_watertight and _nonmanifold_edge_count(real) == 0
+        export_wt &= rwt
+        if not rwt:
+            print(f"  !! {name}.stl is NOT a clean manifold at export scale")
         real.export(str(out / f"{name}.stl"))
         reals[name] = real
         model = real.copy()
@@ -1482,6 +2149,28 @@ def main():
 
     print(f"\n  All pieces watertight (after drilling): {all_wt}"
           f"  (bow is hollow w/ a dome storage opening)")
+    print(f"  All EXPORTED .stl clean manifolds at real scale: {export_wt}")
+
+    if BOW_FLARE_HOLLOW > 0:
+        print(f"\nConcave bow flare: {BOW_FLARE_HOLLOW*DESIGN_SCALE:.2f}\" real max hollow "
+              f"above f={BOW_FLARE_F0:.2f} of the topside, blended g=t^{BOW_FLARE_POW} "
+              f"(EXACTLY 0 at the split); guard clamped at most "
+              f"{FLARE_CLAMP_MAX*DESIGN_SCALE:.3f}\" real")
+    if BOW_KEYS and bkeys:
+        sw, sw_dz, sw_steps = check_key_sweep(pieces)
+        print(f"Bow drop-in sweep check (bow lifted straight up, boolean-intersected with "
+              f"the center at each step):")
+        print("   " + "  ".join(f"dz={dz*DESIGN_SCALE:4.1f}\":{v*DESIGN_SCALE**3:6.4f}"
+                                for dz, v in sw_steps))
+        print(f"  max overlap {sw*DESIGN_SCALE**3:.4f} in^3 (at dz="
+              f"{sw_dz*DESIGN_SCALE:.1f}\" real) -> "
+              f"{'CLEAR' if sw*DESIGN_SCALE**3 < 0.05 else '*** FOULS ***'}")
+    if IFACE_FLANGE and flange_vol:
+        print(f"Interface flange rings ({FLANGE_W*DESIGN_SCALE:.1f}\" wide x "
+              f"{FLANGE_T*DESIGN_SCALE:.1f}\" thick real, butted at x=BOW_SPLIT):")
+        for n, v in flange_vol.items():
+            print(f"  {n:8}: +{v*DESIGN_SCALE**3/1728:.3f} ft^3 of ring stock "
+                  f"(x {'60..%.1f' % (BOW_SPLIT+FLANGE_T) if n=='bow' else '%.1f..60' % (BOW_SPLIT-FLANGE_T)} design)")
 
     # Composite: all 4 pieces merged in their assembled positions -> one viewable STL
     # (and a 1:scale mm version). Same coordinate frame, so this IS the whole boat.
@@ -1536,6 +2225,17 @@ def main():
         print(f"  Saved: {out/'transport_packing.png'}")
         render_bolts(hull, bolts, out / "bolts.png")
         print(f"  Saved: {out/'bolts.png'}")
+        render_bow_flare(hull, out / "bow_flare_compare.png")
+        print(f"  Saved: {out/'bow_flare_compare.png'}")
+        render_bow_flare_3d(hull, pieces["bow"], out / "bow_flare_3d.png")
+        print(f"  Saved: {out/'bow_flare_3d.png'}")
+        if IFACE_FLANGE:
+            render_iface_flange(hull, pieces, bolts, out / "iface_flange.png")
+            print(f"  Saved: {out/'iface_flange.png'}")
+        if BOW_KEYS and bkeys:
+            render_bow_keys._bolts = bolts
+            render_bow_keys(hull, pieces, bkeys, out / "bow_keys.png")
+            print(f"  Saved: {out/'bow_keys.png'}")
 
     # Bolt summary (real units): confirm every bolt sits above the waterline.
     print("\nBolt holes (real boat):")
