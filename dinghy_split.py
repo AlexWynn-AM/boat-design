@@ -153,15 +153,42 @@ CHAMFER_DY = 0.0    # 0 -> no chamfer: clean foredeck that matches the center gu
 # -ve = concave (hollow). The hull lines alone run ~0.3" hollow; this fills it out.
 BOW_CONVEX = 0.6
 
-# --- Concave bow flare (water-shedding hollow above the spray rail) -------------
-# The bow topside gets a shallow hollow (concave flare) between the spray rail and
-# the sheer: spray that climbs past the rail hits an inboard-curving panel and is
-# thrown DOWN/outboard instead of running up onto the foredeck. Applied to the BOW
-# piece only, and faded in from ZERO at the split so the x=BOW_SPLIT interface
+# --- Flared bow (sportfish sheer kick above the spray rail) ---------------------
+# Rev-3.2. The bow topside above the spray rail is kicked OUTBOARD, hardest at the
+# deck edge: the sheer moves out, the panel between rail and sheer leans out with a
+# rising slope, and because the kick grows as a POWER (>1) of height the panel is
+# CONCAVE relative to the straight rail->sheer chord. That is how a real flared bow
+# gets its hollow -- wide dry deck edge overhanging a concave transition panel --
+# instead of pinching a waist into the topside (Rev-3.1's carve-in, below, which
+# read as a pinch under an overhang and is now superseded/off).
+#
+# No material is removed anywhere: everything at/below BOW_FLARE_F0 (spray rail lip
+# and the whole bottom) is untouched, and above it y only grows. Applied to the BOW
+# piece only and faded in from ZERO at the split, so the x=BOW_SPLIT interface
 # section is bit-for-bit the same contour the center presents (flush mate).
-BOW_FLARE_HOLLOW = 1.0   # design in of max inboard hollow (0 = old straight flare)
+BOW_FLARE_OUT = 1.5      # design in of OUTWARD sheer kick at full longitudinal blend
+BOW_FLARE_EXP = 2.2      # height profile: kick ~ ((f-F0)/(1-F0))**this  (>1 => concave)
 BOW_FLARE_POW = 1.5      # longitudinal blend: g = ((x-split)/(LOA-split))**this
-BOW_FLARE_F0 = 0.45      # hollow starts above this topside fraction (rail lip stays proud)
+BOW_FLARE_F0 = 0.45      # flare starts above this topside fraction (rail lip stays put)
+# --- Stem guards on the kick (rev-3.2a) -----------------------------------------
+# g=t**POW grows toward the stem while the sections themselves shrink to nothing, so a
+# raw kick of BOW_FLARE_OUT would be a LARGER fraction of the section the finer it gets
+# (~+53% of the half-beam at the last full station) -- a deck edge that keeps widening
+# while the hull under it vanishes. Two independent guards keep the flare proportional:
+#   CAP  - the kick may never exceed this fraction of the local (pre-kick) sheer
+#          half-width, so it always reads as a flare on the section and not a shelf;
+#   FADE - optional: multiply the kick by a nose fade over the last BOW_FLARE_NOSE_FADE
+#          inches (0 = OFF). Rev-3.2b turned this OFF (user wants flare carried right to
+#          the bow -- the faded deck edge read as "rounding back" at the stem). The fade
+#          was only ever a precaution: the membrane bug it guarded against turned out to
+#          be the coplanar flange boolean, and the raw loft is clean at full kick. With
+#          fade off the CAP alone governs the tip: the kick shrinks in proportion to the
+#          vanishing sections, so the flare persists to the nose without a shelf.
+BOW_FLARE_CAP = 0.25     # kick <= this fraction of the local sheer half-width
+BOW_FLARE_NOSE_FADE = 0.0  # design in of stem fade-out for the flare (0 = carry to nose)
+# Legacy Rev-3.1 carve-in hollow -- superseded by the outward kick above. Code path
+# kept (bow_section(..., hollow=) still honours it) but OFF by default.
+BOW_FLARE_HOLLOW = 0.0   # design in of max INBOARD hollow (0 = off)
 BOW_FLARE_CLAMP = 0.6    # guard: hollow_amt <= this * local y (section can never cross y=0)
 
 # Foredeck transverse camber (crown) in design in. 0 = flat deck. (Was tried at 2.0
@@ -175,6 +202,10 @@ N_DECK = 27
 NOSE_ROUND = 2.5
 NOSE_RINGS = 24
 NOSE_SC_MIN = 0.05
+# Where (in section height) the nose rings shrink TOWARD: 0 = keel, 0.5 = mid-height
+# (old bullnose), 1.0 = the sheer -- deck edge holds full height to the tip and the
+# stem rakes up to meet it (rev-3.2c, sheds water off the flared deck edge).
+NOSE_Z_ANCHOR = 1.0
 # Nose taper profile: sc = (1-f)**NOSE_POW. 0.5 = parabolic ogive (tapers from the
 # start, only the very tip rounds -> NO bulbous neck). 1.0 would be a sharp cone.
 NOSE_POW = 0.5
@@ -260,6 +291,11 @@ FLANGE_T = 1.5 / DESIGN_SCALE     # 1.5" REAL axial thickness (each side of the 
 FLANGE_GAP = 0.05                 # design in: pull the ring's outer edge just inside the
                                   # skin so the union overlaps solid (no coincident faces)
 FLANGE_NX = 5                     # loft stations across the flange thickness
+FLANGE_STEP = 0.01                # design in: x-gap between the two cavity stations that
+                                  # form the BOW ring's forward annular face. The bow's
+                                  # ring is not unioned on -- it is lofted into the storage
+                                  # cavity (see bow_wall_at), which is what keeps any face
+                                  # from landing coplanar with the x=BOW_SPLIT mating plane.
 
 # --- Vertical drop-in dovetail KEYS at the bow/center face (the wedge-key trick, rotated)
 # Same construction as add_vertical_dovetails: ONE shared prism per key, SUBTRACTED from
@@ -554,6 +590,8 @@ def flare_bump(f):
 
 # how much the guard actually had to clamp, worst case (design in) -- reported by main()
 FLARE_CLAMP_MAX = 0.0
+# how much BOW_FLARE_CAP had to trim off the kick, worst case (design in)
+FLARE_CAP_MAX = 0.0
 
 
 def bow_half_outer(hull, x, rail_f, hollow=0.0):
@@ -592,17 +630,114 @@ def bow_half_outer(hull, x, rail_f, hollow=0.0):
 
 
 def bow_flare_g(x):
-    """Longitudinal blend of the concave flare: EXACTLY 0 at x=BOW_SPLIT (so the bow's
+    """Longitudinal blend of the bow flare: EXACTLY 0 at x=BOW_SPLIT (so the bow's
     aft face is the unmodified contour the center presents -> flush mate) growing to 1
     at the stem."""
     t = max(0.0, min(1.0, (x - BOW_SPLIT) / (LOA - BOW_SPLIT)))
     return t ** BOW_FLARE_POW
 
 
-def bow_section(hull, x, hollow=None):
+def flare_out_at(hull, x, o, out):
+    """The EFFECTIVE outward sheer kick at station x for the (pre-kick) half-profile o,
+    after the two stem guards. Returns design inches.
+
+      1. nose FADE  -- optional (BOW_FLARE_NOSE_FADE > 0): multiply by a rail_f-style
+         factor over the last BOW_FLARE_NOSE_FADE inches. OFF by default (rev-3.2b):
+         the flare carries to the nose and the CAP alone governs the tip.
+      2. CAP        -- clamp to BOW_FLARE_CAP * (local sheer half-width). o[-1] is the
+         sheer point and is the widest point of the half-section, so this bounds the
+         deck-edge kick to a fixed FRACTION of the section however fine it gets.
+
+    Both are no-ops aft of the nose (fade off / sections far too wide for the cap to
+    bite), so nothing changes over the body of the bow -- and the kick is exactly 0
+    at x = BOW_SPLIT because `out` is already 0 there."""
+    global FLARE_CAP_MAX
+    if out <= 0.0:
+        return 0.0
+    if BOW_FLARE_NOSE_FADE > 0.0:
+        fade_f = min(1.0, max(0.0, (LOA - x) / BOW_FLARE_NOSE_FADE))
+    else:
+        fade_f = 1.0
+    faded = out * fade_f
+    cap = BOW_FLARE_CAP * max(0.0, o[-1][0])
+    if faded > cap:
+        FLARE_CAP_MAX = max(FLARE_CAP_MAX, faded - cap)
+        faded = cap
+    return faded
+
+
+def flare_kick(hull, x, o, out):
+    """SPORTFISH FLARE: kick the topside OUTBOARD, hardest at the deck edge.
+
+    For every point of the half-profile o (keel..sheer) whose topside height fraction
+    f = (z-cz)/(sz-cz) is above BOW_FLARE_F0:
+
+        y += out * ((f - F0) / (1 - F0)) ** BOW_FLARE_EXP
+
+    with `out` = flare_out_at(...) = BOW_FLARE_OUT * bow_flare_g(x) design inches AFTER
+    the stem guards (nose fade + cap) -- see flare_out_at. Because the exponent is
+    > 1 the kick starts flat just off the spray rail and accelerates toward the sheer,
+    so the panel bows INSIDE the straight rail->sheer chord: that curvature IS the
+    concavity, obtained by moving the sheer OUT rather than by carving the middle IN.
+    Nothing is ever moved inboard, the rail lip and everything below it (f <= F0) is
+    untouched, and z is untouched -> the profile stays z-monotonic and single-valued.
+
+    Note f is recovered from z, which is exactly the parameter bow_half_outer lofted
+    the topside on (z is linear in f there and neither resample nor the convex plan
+    scaling touches z), so this is the same f -- just usable AFTER those steps."""
+    out = flare_out_at(hull, x, o, out)            # stem guards: nose fade + cap
+    if out <= 0.0:
+        return o                                   # x=BOW_SPLIT: returns o untouched
+    cz, sz = hull.interp(x)[1], hull.interp(x)[3]
+    dz = sz - cz
+    if dz <= 1e-9:
+        return o
+    span = 1.0 - BOW_FLARE_F0
+    kicked = []
+    for (y, z) in o:
+        f = (z - cz) / dz
+        if f > BOW_FLARE_F0:
+            u = min(1.0, (f - BOW_FLARE_F0) / span)
+            y = y + out * u ** BOW_FLARE_EXP
+        kicked.append((y, z))
+    return kicked
+
+
+def chord_hollow(hull, x):
+    """How concave the flared panel actually is at station x, in design inches: the max
+    perpendicular distance by which the profile falls INSIDE the straight chord drawn
+    from the f=BOW_FLARE_F0 point (just above the spray rail) to the sheer. This is the
+    number the eye reads as 'hollow flare' -- with the outward kick it is produced with
+    NO inboard movement at all."""
+    zs, ys = _bow_profile_hw(hull, x)
+    cz, sz = hull.interp(x)[1], hull.interp(x)[3]
+    z0 = cz + BOW_FLARE_F0 * (sz - cz)
+    band = [(y, z) for y, z in zip(ys, zs) if z >= z0 - 1e-9]
+    if len(band) < 3:
+        return 0.0
+    y0 = float(np.interp(z0, zs, ys))
+    p0 = np.array([y0, z0])
+    p1 = np.array([band[-1][0], band[-1][1]])
+    d = p1 - p0
+    n = float(np.hypot(*d))
+    if n < 1e-9:
+        return 0.0
+    d = d / n
+    worst = 0.0
+    for (y, z) in band:
+        v = np.array([y, z]) - p0
+        # signed offset: +ve = point is INBOARD of the chord (hollow)
+        off = d[1] * v[0] - d[0] * v[1]
+        worst = max(worst, -off if d[1] > 0 else off)
+    return float(worst)
+
+
+def bow_section(hull, x, hollow=None, out=None):
     rail_f = min(1.0, max(0.0, (LOA - x) / BOW_RAIL_FADE))     # full rail; fade near stem
     if hollow is None:
         hollow = BOW_FLARE_HOLLOW * bow_flare_g(x)             # 0 at the split
+    if out is None:
+        out = BOW_FLARE_OUT * bow_flare_g(x)                   # 0 at the split
     o = resample(bow_half_outer(hull, x, rail_f, hollow), NP)  # keel..stbd sheer
     # Gently convex plan-view sheer: scale each section to a (chord + sine bulge)
     # target half-width so the top-down bow outline bulges out slightly instead of
@@ -614,6 +749,11 @@ def bow_section(hull, x, hollow=None):
     if cur > 0.1:
         sc = target / cur
         o = [(y * sc, z) for (y, z) in o]
+    # Flare AFTER the plan scaling (so that logic is untouched and the flare is a true
+    # added width) and BEFORE the deck, so the foredeck is built from the FLARED sheer
+    # point and widens toward the stem on its own. In the rounded nose (build_bow) the
+    # last full section is shrunk homothetically, so the flare shrinks with it -- no lip.
+    o = flare_kick(hull, x, o, out)
     o = chamfer_profile(o, chamfer_amount(x))   # bevel aft-top corners to clear rail
     shw, sz = o[-1]                              # stbd sheer (deck edge) of this section
     # Crowned deck: arch from the stbd sheer over the centerline to the port sheer.
@@ -755,21 +895,28 @@ def build_bow(hull):
     xs = list(np.linspace(BOW_SPLIT, x_nose, N_STN_BOW))
     sections = [bow_section(hull, x) for x in xs]
     base = sections[-1]                                  # full section at x_nose
-    zc = 0.5 * (min(z for _, z in base) + max(z for _, z in base))  # nose center height
-    # Homothetic shrink of the base section toward (0, zc); a small final ring is ear-clip
+    zlo = min(z for _, z in base)
+    zhi = max(z for _, z in base)
+    # z-anchor of the nose shrink. Rev-3.2c: anchored at the SHEER (NOSE_Z_ANCHOR=1) so
+    # the deck edge -- and the flare it carries -- stays at full height to the very tip
+    # (raked-stem look, sheds water); the keel side sweeps up into the stem. The old
+    # mid-height anchor (0.5) pulled the deck edge down into a bullnose that read as
+    # "rounding back" at the bow.
+    za = zlo + NOSE_Z_ANCHOR * (zhi - zlo)
+    # Homothetic shrink of the base section toward (0, za); a small final ring is ear-clip
     # capped -- that handles the section's concavity (flat deck + V) cleanly, whereas a
     # triangle-fan-to-apex overlaps on a non-convex section.
     for i in range(1, NOSE_RINGS + 1):
         f = i / NOSE_RINGS
         sc = max(NOSE_SC_MIN, (1.0 - f) ** NOSE_POW)
         xs.append(x_nose + NOSE_ROUND * f)
-        sections.append([(y * sc, zc + (z - zc) * sc) for (y, z) in base])
+        sections.append([(y * sc, za + (z - za) * sc) for (y, z) in base])
     return loft(np.array(xs), sections)
 
 
 def _bow_profile_hw(hull, x):
     """The bow's stbd outer half-width vs height at station x (z increasing): replicates
-    bow_section's rail-fade + convex scaling. Returns (zs, ys) arrays."""
+    bow_section's rail-fade + convex scaling + flare kick. Returns (zs, ys) arrays."""
     rail_f = min(1.0, max(0.0, (LOA - x) / BOW_RAIL_FADE))
     o = resample(bow_half_outer(hull, x, rail_f,
                                 BOW_FLARE_HOLLOW * bow_flare_g(x)), NP)
@@ -779,7 +926,24 @@ def _bow_profile_hw(hull, x):
     cur = max(p[0] for p in o)
     if cur > 0.1:
         o = [(y * target / cur, z) for (y, z) in o]
+    o = flare_kick(hull, x, o, BOW_FLARE_OUT * bow_flare_g(x))   # same order as bow_section
     return np.array([p[1] for p in o]), np.array([p[0] for p in o])
+
+
+def flare_kicks_at(hull, x):
+    """(raw, effective) outward sheer kick at station x in DESIGN inches -- i.e. before
+    and after the stem guards in flare_out_at. Used by the reports and the renders so
+    they quote the kick the hull actually carries, not the un-guarded BOW_FLARE_OUT*g."""
+    rail_f = min(1.0, max(0.0, (LOA - x) / BOW_RAIL_FADE))
+    o = resample(bow_half_outer(hull, x, rail_f, BOW_FLARE_HOLLOW * bow_flare_g(x)), NP)
+    t = (x - BOW_SPLIT) / (LOA - BOW_SPLIT)
+    sh0, sh1 = hull.interp(BOW_SPLIT)[2], hull.interp(LOA)[2]
+    target = sh0 * (1 - t) + sh1 * t + BOW_CONVEX * np.sin(np.pi * t)
+    cur = max(p[0] for p in o)
+    if cur > 0.1:
+        o = [(y * target / cur, z) for (y, z) in o]
+    raw = BOW_FLARE_OUT * bow_flare_g(x)
+    return raw, flare_out_at(hull, x, o, raw)
 
 
 def _arch(hw, z_sole, z_peak, n_top=12):
@@ -794,15 +958,50 @@ def _arch(hw, z_sole, z_peak, n_top=12):
     return pts
 
 
+def bow_wall_at(hull, x):
+    """Local bow shell-wall thickness (radial inset of the storage cavity) at station x.
+
+    BOW_WALL everywhere EXCEPT over the interface flange span x = BOW_SPLIT ..
+    BOW_SPLIT+FLANGE_T, where the wall is thickened to FLANGE_GAP+FLANGE_W so the
+    bolt-grip bulkhead RING is produced by the same loft that hollows the shell.
+
+    WHY: the ring used to be a separate solid unioned on (build_iface_flange), and its
+    aft cap sat EXACTLY in the plane x=BOW_SPLIT -- coplanar with the shell's own aft
+    face. manifold3d resolved that coincidence with ~36 zero-area triangles which, once
+    the STL round-trips through float32, collapse into non-manifold edges; make_manifold
+    then had to call pymeshfix, and pymeshfix bridged the thin nose shell and the storage
+    opening with the big flat membranes seen on the foredeck. Building the ring INTO the
+    cavity produces the identical solid (the ring's inner boundary IS this inset, taken
+    off the same contour about the same centroid) with no boolean and no coplanar faces,
+    so the repair pass has nothing left to patch."""
+    if IFACE_FLANGE and BOW_SPLIT - EPS <= x <= BOW_SPLIT + FLANGE_T + EPS:
+        return FLANGE_GAP + FLANGE_W
+    return BOW_WALL
+
+
 def build_bow_cavity(hull):
     """Solid for hollowing the bow into a uniform ~BOW_WALL shell that follows the FULL
     hull section -- so the V-bottom FLOOR gets hollowed too, not left solid. Each
-    bow_section is inset BOW_WALL toward its centroid; lofted from ~1" AFT of the split
-    (subtracting it opens the aft face for storage access) forward until the nose gets too
-    thin to hollow, then tapered shut. Closed solid for the boolean."""
+    bow_section is inset bow_wall_at(x) toward its centroid (that inset carries the
+    interface flange ring, see bow_wall_at); lofted from ~1" AFT of the split (subtracting
+    it opens the aft face for storage access) forward until the nose gets too thin to
+    hollow, then tapered shut. Closed solid for the boolean."""
     x_nose = LOA - NOSE_ROUND
+    # The forward taper below appends up to +3.6" past the last kept station, so stop the
+    # scan early enough that the cavity closes BEFORE the nose rings begin (x_nose): the
+    # rings shrink the hull toward the SHEER (NOSE_Z_ANCHOR), while the taper shrinks
+    # toward the section centroid -- past x_nose those diverge and the cavity tip would
+    # punch out through the underside of the raked stem (rev-3.2c bug: a slit at the tip).
+    cav_end = x_nose - 3.7
+    xs_scan = list(np.linspace(BOW_SPLIT, cav_end, N_STN_BOW + 10))
+    if IFACE_FLANGE:
+        # explicit stations either side of the ring's forward face so the wall STEPS back
+        # to BOW_WALL there (this pair of rings is the ring's front annular face)
+        xs_scan += [BOW_SPLIT + FLANGE_T, BOW_SPLIT + FLANGE_T + FLANGE_STEP]
+        xs_scan = sorted(set(xs_scan))
     xs, sections = [], []
-    for x in np.linspace(BOW_SPLIT, x_nose, N_STN_BOW + 10):
+    for x in xs_scan:
+        wall = bow_wall_at(hull, x)
         sec = bow_section(hull, x)
         cy = sum(p[0] for p in sec) / len(sec)
         cz = sum(p[1] for p in sec) / len(sec)
@@ -810,10 +1009,10 @@ def build_bow_cavity(hull):
         for (y, z) in sec:
             ddy, ddz = cy - y, cz - z
             d = (ddy * ddy + ddz * ddz) ** 0.5
-            if d <= BOW_WALL + 0.1:                       # closer to centroid than the wall -> too thin
+            if d <= wall + 0.1:                           # closer to centroid than the wall -> too thin
                 ok = False
                 break
-            inset.append((y + ddy / d * BOW_WALL, z + ddz / d * BOW_WALL))
+            inset.append((y + ddy / d * wall, z + ddz / d * wall))
         if not ok:
             break
         ys = [p[0] for p in inset]
@@ -842,7 +1041,7 @@ def iface_contour(hull, x, piece):
     """The full closed outer section (y-z) of `piece` at station x: hull V both sides,
     up to the sheer, closed across the top by the deck line at sz. At x=BOW_SPLIT the
     center's and the bow's contours are the SAME curve (the hull outer half-section --
-    no mating wall there, and the flare hollow blends in from zero), which is why the
+    no mating wall there, and the bow flare blends in from zero), which is why the
     two flange rings mate flush. Only the sampling differs."""
     if piece == "bow":
         return bow_section(hull, x)
@@ -1536,95 +1735,226 @@ def _shaded_mesh(ax, m, base="#6DC8EC", light=(0.45, 0.75, 0.5), alpha=1.0):
 
 
 def render_bow_flare(hull, out_path):
-    """Half-sections (y vs z, REAL inches) at 4 bow stations, overlaying the straight
-    topside (BOW_FLARE_HOLLOW=0) against 1.0 and 1.5, with the spray rail and the 7"
-    waterline marked -- so the hollow above the rail is directly comparable."""
+    """Half-sections (y vs z, REAL inches) at 4 bow stations for four flare strengths,
+    with the spray rail, the flare start f=F0 and the 7" waterline marked. The straight
+    (OUT=0) case is the dashed reference: everything at/below the rail lies exactly on
+    top of it, and the topside above it swings progressively outboard to a wider deck
+    edge -- bowing INSIDE the rail->sheer chord (thin grey) = the concave panel."""
     import matplotlib.pyplot as plt
     s = DESIGN_SCALE
     stations = (66.0, 78.0, 90.0, 100.0)
-    variants = ((0.0, "--", 1.6, "#9aa4ae", "hollow 0.0 (straight flare)"),
-                (1.0, "-", 2.4, "#0b6fa4", "hollow 1.0 (this build)"),
-                (1.5, ":", 2.2, "#c0392b", "hollow 1.5"))
+    variants = ((0.0, "--", 1.6, "#9aa4ae", "OUT 0.0 (straight flare)"),
+                (1.0, "-", 1.7, "#5fa8d3", "OUT 1.0"),
+                (BOW_FLARE_OUT, "-", 2.6, "#0b6fa4",
+                 f"OUT {BOW_FLARE_OUT:.2f} (THIS BUILD)"),
+                (2.25, ":", 2.2, "#c0392b", "OUT 2.25"))
 
-    fig, axes = plt.subplots(1, 4, figsize=(20, 6.2))
-    for ax, x in zip(axes, stations):
+    fig, axes = plt.subplots(2, 4, figsize=(20, 11.5))
+    for col_i, x in enumerate(stations):
         bhw, cz, shw, sz, dr, kz = hull.interp(x)
-        for H, ls, lw, col, lab in variants:
-            sec = bow_section(hull, x, hollow=H * bow_flare_g(x))
-            half = sec[:NP]                                   # keel .. stbd sheer
-            ax.plot([s * p[0] for p in half], [s * p[1] for p in half],
-                    ls, lw=lw, color=col, label=lab if x == stations[0] else None)
-        # spray-rail height (fraction SPRAY_RAIL_HEIGHT_FRAC up the topside)
-        z_rail = cz + h2.SPRAY_RAIL_HEIGHT_FRAC * (sz - cz)
-        ax.axhline(s * z_rail, color="#e08a00", lw=1.0, ls="-.",
-                   label="spray rail" if x == stations[0] else None)
-        z_f0 = cz + BOW_FLARE_F0 * (sz - cz)
-        ax.axhline(s * z_f0, color="#e08a00", lw=0.7, ls=":",
-                   label="hollow starts (f=%.2f)" % BOW_FLARE_F0 if x == stations[0] else None)
-        ax.axhline(s * (kz + WATERLINE / DESIGN_SCALE), color="#1f77b4", lw=1.2, ls="--",
-                   label='waterline (7" real)' if x == stations[0] else None)
-        ax.axhline(s * cz, color="#bbb", lw=0.7)
-        ax.set_title(f"x = {x:.0f} design  ({s*x:.0f}\" real)\n"
-                     f"g = {bow_flare_g(x):.3f}", fontsize=10, fontweight="bold")
-        ax.set_xlabel("half-beam y (real in)")
-        ax.set_aspect("equal")
-        ax.grid(alpha=0.22)
-    axes[0].set_ylabel("height z (real in)")
-    axes[0].legend(fontsize=8, loc="upper left")
-    fig.suptitle("Concave bow flare -- water-shedding hollow above the spray rail "
-                 "(sheer & chine widths unchanged; ZERO at the x=60 split)",
-                 fontsize=14, fontweight="bold")
-    plt.tight_layout(rect=[0, 0, 1, 0.92])
+        first = (col_i == 0)
+        z0 = cz + BOW_FLARE_F0 * (sz - cz)                 # flare start (just above rail)
+        for row, ax in enumerate(axes[:, col_i]):
+            for OUT, ls, lw, col, lab in variants:
+                half = bow_section(hull, x, out=OUT * bow_flare_g(x))[:NP]  # keel..sheer
+                ax.plot([s * p[0] for p in half], [s * p[1] for p in half],
+                        ls, lw=lw, color=col, label=lab if first and row == 0 else None)
+                if OUT == BOW_FLARE_OUT:                   # rail->sheer chord of the build
+                    zs = [p[1] for p in half]
+                    y0 = float(np.interp(z0, zs, [p[0] for p in half]))
+                    ax.plot([s * y0, s * half[-1][0]], [s * z0, s * half[-1][1]],
+                            "-", lw=0.9, color="#444",
+                            label="rail->sheer chord (panel is hollow inside it)"
+                            if first and row == 0 else None)
+                    sheer_y, sheer_z = half[-1]
+            z_rail = cz + h2.SPRAY_RAIL_HEIGHT_FRAC * (sz - cz)
+            ax.axhline(s * z_rail, color="#e08a00", lw=1.0, ls="-.",
+                       label="spray rail" if first and row == 0 else None)
+            ax.axhline(s * z0, color="#e08a00", lw=0.7, ls=":",
+                       label="flare starts (f=%.2f)" % BOW_FLARE_F0
+                       if first and row == 0 else None)
+            ax.axhline(s * (kz + WATERLINE / DESIGN_SCALE), color="#1f77b4", lw=1.2,
+                       ls="--", label='waterline (7" real)' if first and row == 0 else None)
+            ax.axhline(s * cz, color="#bbb", lw=0.7)
+            ax.set_aspect("equal")
+            ax.grid(alpha=0.22)
+            if row == 1:                                   # zoom on the flared panel
+                base = bow_section(hull, x, out=0.0)[:NP]
+                y_rail = float(np.interp(z_rail, [p[1] for p in base],
+                                         [p[0] for p in base]))
+                y_hi = sheer_y + max(0.0, 2.25 - BOW_FLARE_OUT) * bow_flare_g(x)
+                pad = 0.9
+                ax.set_ylim(s * (z_rail - pad), s * (sz + pad))
+                ax.set_xlim(s * (min(y_rail, y_hi) - 2.2 * pad), s * (y_hi + pad))
+                ax.set_xlabel("half-beam y (real in)")
+                ax.set_title("zoom: rail -> deck edge", fontsize=9)
+            else:
+                raw_kick, kick = flare_kicks_at(hull, x)   # before / after the stem guards
+                guard = "" if abs(raw_kick - kick) < 1e-9 else \
+                    f" (raw {s*raw_kick:.2f}\", nose fade x{kick/max(raw_kick,1e-9):.2f})"
+                ax.set_title(f"x = {x:.0f} design  ({s*x:.0f}\" real)\n"
+                             f"g = {bow_flare_g(x):.3f}   sheer +{s*kick:.2f}\" real{guard}\n"
+                             f"hollow {s*chord_hollow(hull, x):.2f}\"",
+                             fontsize=10, fontweight="bold")
+    axes[0, 0].set_ylabel("height z (real in)")
+    axes[1, 0].set_ylabel("height z (real in)")
+    axes[0, 0].legend(fontsize=8, loc="upper left")
+    fig.suptitle("Flared bow -- the SHEER kicks outboard (concavity comes from the "
+                 "curvature of the kick, not from carving material away).\n"
+                 "Spray rail and everything below it are untouched; the whole flare is "
+                 "ZERO at the x=60 split.", fontsize=13, fontweight="bold")
+    plt.tight_layout(rect=[0, 0, 1, 0.94])
     plt.savefig(str(out_path), dpi=140, bbox_inches="tight")
     plt.close()
 
 
-def render_bow_flare_3d(hull, bow, out_path):
-    """The flared bow alone from a low forward-quarter angle so the concavity reads:
-    (1) the shaded solid, (2) the same view drawn as station curves with the OLD straight
-    flare (grey dashed) overlaid on the new hollow one (blue)."""
-    import matplotlib.pyplot as plt
-    lo, hi = bow.bounds
+def _bow_deck_edge(hull, out_val, n=56):
+    """The starboard deck-edge (sheer) line of the bow as built, for flare strength
+    out_val, INCLUDING the rounded nose rings -- so the plan outline is the real one."""
+    x_nose = LOA - NOSE_ROUND
+    xs = list(np.linspace(BOW_SPLIT, x_nose, n))
+    secs = [bow_section(hull, x, out=out_val * bow_flare_g(x)) for x in xs]
+    pts = [(x, sec[NP - 1][0], sec[NP - 1][1]) for x, sec in zip(xs, secs)]
+    base = secs[-1]
+    zc = 0.5 * (min(z for _, z in base) + max(z for _, z in base))
+    ye, ze = base[NP - 1]
+    for i in range(1, NOSE_RINGS + 1):                     # homothetic nose shrink
+        f = i / NOSE_RINGS
+        sc = max(NOSE_SC_MIN, (1.0 - f) ** NOSE_POW)
+        pts.append((x_nose + NOSE_ROUND * f, ye * sc, zc + (ze - zc) * sc))
+    return pts
 
-    def setup(ax, ylim, zoom):
+
+def render_bow_flare_3d(hull, bow, out_path):
+    """Three views that make the flare READ:
+      (a) bow-on from dead ahead, camera just below deck level -> the topsides splay out
+          as they rise and the deck edge overhangs;
+      (b) forward quarter at deck height -> the concave panel under the deck edge;
+      (c) plan view of the foredeck outline, flared vs straight overlaid.
+    In (a)/(b) the grey dashed line is where the deck edge WAS with a straight flare."""
+    import matplotlib.pyplot as plt
+    s = DESIGN_SCALE
+    lo, hi = bow.bounds
+    edge_new = _bow_deck_edge(hull, BOW_FLARE_OUT)
+    edge_old = _bow_deck_edge(hull, 0.0)
+
+    def edges(ax, both_sides):
+        for pts, col, ls, lw, lab in ((edge_old, "#e04b2a", "--", 1.9,
+                                       "straight-flare deck edge (was)"),
+                                      (edge_new, "#0b3d5c", "-", 2.4,
+                                       f"flared deck edge (OUT={BOW_FLARE_OUT:.2f})")):
+            for sgn in ((1, -1) if both_sides else (1,)):
+                ax.plot([p[0] for p in pts], [sgn * p[1] for p in pts],
+                        [p[2] for p in pts], ls, color=col, lw=lw,
+                        label=lab if sgn == 1 else None)
+
+    def setup(ax, ylim, elev, azim, zoom):
         ax.set_xlim(lo[0] - 1, hi[0] + 1)
         ax.set_ylim(*ylim)
         ax.set_zlim(lo[2] - 1, hi[2] + 1)
-        ax.view_init(elev=6, azim=34)          # camera FORWARD of the stem, stbd, low
+        ax.view_init(elev=elev, azim=azim)
         ax.set_box_aspect([hi[0] - lo[0], ylim[1] - ylim[0], hi[2] - lo[2]], zoom=zoom)
         ax.set_axis_off()
 
-    fig = plt.figure(figsize=(19, 7.6))
+    fig = plt.figure(figsize=(21, 7.4))
 
-    ax = fig.add_subplot(1, 2, 1, projection="3d")
-    _shaded_mesh(ax, bow, "#8fbcd9", light=(0.22, 0.62, 0.75))   # light from above/outboard
-    setup(ax, (-22, 22), 1.7)
-    ax.set_title("Shaded solid -- forward-quarter, low\n"
-                 "(the shaded crease running aft under the sheer is the hollow)",
+    # (a) dead ahead, camera a little below the deck. The head-on SILHOUETTE is set by
+    # the (unflared) x=60 aft face, so the flare is shown by overlaying the body plan:
+    # at each forward station the flared section (blue) stands outboard of the straight
+    # one (red) at the deck and bows inside the chord below it.
+    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+    ax = fig.add_subplot(1, 3, 1, projection="3d")
+    ax.set_proj_type("ortho")
+    for xst in (66.0, 72.0, 78.0, 84.0, 90.0, 96.0, 102.0):
+        h_new = bow_section(hull, xst, out=BOW_FLARE_OUT * bow_flare_g(xst))[:NP]
+        h_old = bow_section(hull, xst, out=0.0)[:NP]
+        # the sliver the flare ADDS, both sides -> the kick is visible even where the
+        # two curves are only a fraction of an inch apart
+        poly = [(xst, y, z) for (y, z) in h_new] + \
+               [(xst, y, z) for (y, z) in reversed(h_old)]
+        for sgn in (1, -1):
+            ax.add_collection3d(Poly3DCollection(
+                [[(x, sgn * y, z) for (x, y, z) in poly]],
+                facecolor="#0b6fa4", alpha=0.55, edgecolor="none"))
+        for half, col, ls, lw in ((h_old, "#e04b2a", "--", 1.3),
+                                  (h_new, "#0b3d5c", "-", 2.0)):
+            ys = [p[0] for p in half] + [-p[0] for p in reversed(half)]
+            zs = [p[1] for p in half] + [p[1] for p in reversed(half)]
+            ax.plot([xst] * len(ys), ys, zs, ls, color=col, lw=lw)
+    edges(ax, True)
+    setup(ax, (-22, 22), elev=5, azim=2, zoom=1.3)
+    ax.set_title("(a) Bow-on, dead ahead, camera just below deck level\n"
+                 "body plan x=66..102 (ortho): every topside splays OUT as it rises;\n"
+                 "shaded sliver = width the flare ADDS, widest at the deck edge",
                  fontsize=10, fontweight="bold")
+    ax.legend(fontsize=8, loc="lower center")
 
-    ax = fig.add_subplot(1, 2, 2, projection="3d")
-    xs = np.linspace(BOW_SPLIT, LOA - NOSE_ROUND - 1.0, 11)
-    for H, col, ls, lw, lab in ((0.0, "#9aa4ae", "--", 1.5, "old: straight flare"),
-                                (BOW_FLARE_HOLLOW, "#0b6fa4", "-", 2.1,
-                                 f"new: hollow {BOW_FLARE_HOLLOW:.1f}")):
-        sheer = []
-        for x in xs:
-            half = bow_section(hull, x, hollow=H * bow_flare_g(x))[:NP]
-            ax.plot([x] * NP, [p[0] for p in half], [p[1] for p in half],
-                    ls, color=col, lw=lw)
-            sheer.append((x, half[-1][0], half[-1][1]))
-        ax.plot([p[0] for p in sheer], [p[1] for p in sheer], [p[2] for p in sheer],
-                ls, color=col, lw=lw, label=lab)
-    setup(ax, (-1, 21), 1.15)
-    ax.set_title("Station curves, stbd half -- hollow vs the straight flare it replaces\n"
-                 "(sheer line, top, is identical in both)", fontsize=10, fontweight="bold")
-    ax.legend(fontsize=9, loc="upper left")
+    # (b) forward quarter, deck height
+    ax = fig.add_subplot(1, 3, 2, projection="3d")
+    ax.computed_zorder = False            # draw the guide lines ON TOP of the solid
+    _shaded_mesh(ax, bow, "#8fbcd9", light=(0.34, 0.64, 0.69))
+    pts = edge_new                                 # only the flared edge is visible here
+    ax.plot([p[0] for p in pts], [p[1] for p in pts], [p[2] for p in pts],
+            "-", color="#0b3d5c", lw=2.4, label="flared deck edge (overhangs the panel)")
+    rail = []                                        # spray-rail line = bottom of the panel
+    for x in np.linspace(BOW_SPLIT, LOA - NOSE_ROUND, 40):
+        cz, sz = hull.interp(x)[1], hull.interp(x)[3]
+        zr = cz + h2.SPRAY_RAIL_HEIGHT_FRAC * (sz - cz)
+        half = bow_section(hull, x)[:NP]
+        rail.append((x, float(np.interp(zr, [p[1] for p in half],
+                                        [p[0] for p in half])), zr))
+    ax.plot([p[0] for p in rail], [p[1] for p in rail], [p[2] for p in rail],
+            "-", color="#e08a00", lw=2.0, label="spray rail (untouched by the flare)")
+    setup(ax, (-22, 22), elev=8, azim=38, zoom=1.5)
+    ax.set_title("(b) Forward quarter, deck height\n"
+                 "the shadowed panel between spray rail and deck edge is the concavity",
+                 fontsize=10, fontweight="bold")
+    ax.legend(fontsize=8, loc="lower left")
 
-    fig.suptitle(f"Flared bow  (BOW_FLARE_HOLLOW = {BOW_FLARE_HOLLOW:.1f} design in = "
-                 f"{BOW_FLARE_HOLLOW*DESIGN_SCALE:.2f}\" real max hollow, zero at the "
-                 f"x=60 split and at the sheer)", fontsize=14, fontweight="bold")
-    plt.tight_layout(rect=[0, 0, 1, 0.93])
+    # (c) plan view of the foredeck outline (real inches)
+    ax = fig.add_subplot(1, 3, 3)
+    xs_n = [s * p[0] for p in edge_new]
+    ys_n = [s * p[1] for p in edge_new]
+    xs_o = [s * p[0] for p in edge_old]
+    ys_o = [s * p[1] for p in edge_old]
+    ax.fill_between(xs_n, ys_n, [-y for y in ys_n], color="#0b6fa4", alpha=0.16, lw=0)
+    ax.plot(xs_n, ys_n, "-", color="#0b3d5c", lw=2.4, label="flared foredeck")
+    ax.plot(xs_n, [-y for y in ys_n], "-", color="#0b3d5c", lw=2.4)
+    ax.plot(xs_o, ys_o, "--", color="#e04b2a", lw=1.9, label="straight flare")
+    ax.plot(xs_o, [-y for y in ys_o], "--", color="#e04b2a", lw=1.9)
+    ax.axvline(s * BOW_SPLIT, color="#888", lw=1.0, ls=":")
+    ax.text(s * BOW_SPLIT + 0.4, 0.0, "x=60 split\n(flare = 0, faces mate)",
+            fontsize=8, va="center", color="#555")
+    imax = max(range(len(xs_n)), key=lambda i: ys_n[i] - ys_o[i])
+    ax.annotate(f"+{ys_n[imax]-ys_o[imax]:.2f}\" per side",
+                xy=(xs_n[imax], ys_n[imax]), xytext=(xs_n[imax] - 9, ys_n[imax] + 5.5),
+                fontsize=9, fontweight="bold", color="#0b3d5c",
+                arrowprops=dict(arrowstyle="->", color="#0b3d5c", lw=1.2))
+    ax.set_aspect("equal")
+    ax.grid(alpha=0.25)
+    ax.set_xlabel("x aft->stem (real in)")
+    ax.set_ylabel("half-beam (real in)")
+    if BOW_FLARE_NOSE_FADE > 0.0:
+        ax.axvline(s * (LOA - BOW_FLARE_NOSE_FADE), color="#e08a00", lw=1.0, ls="-.")
+        ax.text(s * (LOA - BOW_FLARE_NOSE_FADE) - 0.6, -s * 13.5,
+                f"nose fade starts\n(last {s*BOW_FLARE_NOSE_FADE:.0f}\": flare eases "
+                f"to 0)", fontsize=7.5, ha="right", color="#a06a00")
+    ax.set_title("(c) Foredeck plan outline -- flared vs straight\n"
+                 "the deck edge stays kicked out to the nose (cap-governed at the tip)",
+                 fontsize=10, fontweight="bold")
+    ax.legend(fontsize=8, loc="lower left")
+
+    xk, (rk, ek) = max(((x, flare_kicks_at(hull, x))
+                        for x in np.linspace(BOW_SPLIT, LOA - NOSE_ROUND, 120)),
+                       key=lambda p: p[1][1])
+    fig.suptitle(f"Flared bow (Rev-3.2): sheer kicked OUT up to "
+                 f"{ek*s:.2f}\" real (peak at x={xk*s:.0f}\"), height profile "
+                 f"u^{BOW_FLARE_EXP} above f={BOW_FLARE_F0:.2f}, longitudinal g=t^"
+                 f"{BOW_FLARE_POW}, capped at {BOW_FLARE_CAP:.2f} x sheer half-width "
+                 f"(carried to the nose, no stem fade)\n"
+                 f"-- zero at the x=60 split, no material removed",
+                 fontsize=13, fontweight="bold")
+    plt.tight_layout(rect=[0, 0, 1, 0.92])
     plt.savefig(str(out_path), dpi=140, bbox_inches="tight")
     plt.close()
 
@@ -2080,20 +2410,28 @@ def main():
             m = m.difference(build_bow_cavity(hull))       # hollow + dome storage access
             trimesh.repair.fix_normals(m)                  # (no merge_vertices: welds thin wall)
         if IFACE_FLANGE and name in ("center", "bow"):
-            # Bolt-grip bulkhead ring at the x=BOW_SPLIT joint. NOTE the order: for the
-            # bow this must come AFTER build_bow_cavity, because that cavity hollows the
-            # whole aft face down to a SKIN wall -- cutting it after the union would eat
-            # the ring entirely. Unioning it now leaves the ring as the rim of the storage
-            # opening (the opening stays FLANGE_W smaller but still full-section wide).
-            # Both flanges land before add_bolt_holes, so the bolts drill through them.
+            # Bolt-grip bulkhead ring at the x=BOW_SPLIT joint.
+            #   BOW    -- the ring is ALREADY there: build_bow_cavity thickened the shell
+            #             wall to FLANGE_GAP+FLANGE_W over x=60..60+FLANGE_T (bow_wall_at),
+            #             so the ring is the rim of the storage opening, lofted rather than
+            #             unioned. Unioning a separate ring used to put its aft cap exactly
+            #             coplanar with the shell's aft face at x=BOW_SPLIT, and the
+            #             zero-area slivers that produced were what dragged pymeshfix in
+            #             (-> membranes on the foredeck). We only measure it here.
+            #   CENTER -- still a genuine union: the center is a solid tub, not a shell, so
+            #             its U-band ring has no cavity to be lofted into, and its aft
+            #             (x=BOW_SPLIT-FLANGE_T) cap is coplanar with nothing.
+            # Both land before add_bolt_holes, so the bolts drill through them.
             import trimesh
             fl = build_iface_flange(hull, name)
-            if fl is not None:
+            if fl is None:
+                print(f"  !! interface flange for {name} could not be built")
+            elif name == "bow":
+                flange_vol[name] = fl.volume          # lofted into the cavity; nothing to do
+            else:
                 m = m.union(fl)
                 trimesh.repair.fix_normals(m)
                 flange_vol[name] = fl.volume
-            else:
-                print(f"  !! interface flange for {name} could not be built")
         pieces[name] = m
 
     if USE_VKEYS:
@@ -2151,11 +2489,29 @@ def main():
           f"  (bow is hollow w/ a dome storage opening)")
     print(f"  All EXPORTED .stl clean manifolds at real scale: {export_wt}")
 
+    if BOW_FLARE_OUT > 0:
+        _hull_f = DinghyHull()
+        _xs = np.linspace(BOW_SPLIT, LOA - NOSE_ROUND, 120)
+        _ch = max(chord_hollow(_hull_f, x) for x in _xs)
+        _xk, (_rk, _ek) = max(((x, flare_kicks_at(_hull_f, x)) for x in _xs),
+                              key=lambda p: p[1][1])
+        print(f"\nFlared bow: sheer kicked OUT up to {_ek*DESIGN_SCALE:.2f}\" real "
+              f"(peak at x={_xk*DESIGN_SCALE:.0f}\" real), above f={BOW_FLARE_F0:.2f} of the "
+              f"topside, height profile u^{BOW_FLARE_EXP}, blended g=t^{BOW_FLARE_POW} "
+              f"(EXACTLY 0 at the split)."
+              f"\n  Stem guard: kick capped at {BOW_FLARE_CAP:.2f} x local sheer half-width "
+              f"(trimmed at most {FLARE_CAP_MAX*DESIGN_SCALE:.3f}\" real); "
+              + (f"nose fade over last {BOW_FLARE_NOSE_FADE*DESIGN_SCALE:.0f}\" real."
+                 if BOW_FLARE_NOSE_FADE > 0 else "carried to the nose (no stem fade).")
+              + "".join(f"\n    x={x*DESIGN_SCALE:5.1f}\" real: kick "
+                        f"{flare_kicks_at(_hull_f, x)[1]*DESIGN_SCALE:.2f}\" "
+                        f"(un-guarded {flare_kicks_at(_hull_f, x)[0]*DESIGN_SCALE:.2f}\")"
+                        for x in (78.0, 90.0, 100.0, LOA - NOSE_ROUND))
+              + f"\n  Panel concavity vs the rail->sheer chord: up to "
+                f"{_ch*DESIGN_SCALE:.2f}\" real (no material removed anywhere)")
     if BOW_FLARE_HOLLOW > 0:
-        print(f"\nConcave bow flare: {BOW_FLARE_HOLLOW*DESIGN_SCALE:.2f}\" real max hollow "
-              f"above f={BOW_FLARE_F0:.2f} of the topside, blended g=t^{BOW_FLARE_POW} "
-              f"(EXACTLY 0 at the split); guard clamped at most "
-              f"{FLARE_CLAMP_MAX*DESIGN_SCALE:.3f}\" real")
+        print(f"\nLegacy carve-in hollow: {BOW_FLARE_HOLLOW*DESIGN_SCALE:.2f}\" real max "
+              f"inboard; guard clamped at most {FLARE_CLAMP_MAX*DESIGN_SCALE:.3f}\" real")
     if BOW_KEYS and bkeys:
         sw, sw_dz, sw_steps = check_key_sweep(pieces)
         print(f"Bow drop-in sweep check (bow lifted straight up, boolean-intersected with "
