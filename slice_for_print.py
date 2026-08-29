@@ -20,7 +20,10 @@ DOWEL_CLEAR = 0.2             # mm added to the HOLE (dia+clear) for epoxy fit
 DOWEL_DEPTH = 6.0             # mm hole depth into EACH side of a cut
 DOWELS_PER_FACE = 3           # dowels per shared cut face (fewer if the face is small)
 MIN_CHUNK_IN3 = 0.06          # drop chunks below ~1 cm^3 of material
-PIECES = ["center", "wedge_stbd", "wedge_port", "bow"]
+# Print order. Chunks are numbered sequentially in this order, so this list decides
+# what gets printed first; within a piece they run bottom layer up, then raster in x
+# and y, which is also the order you bond them in.
+PIECES = ["bow", "center", "wedge_stbd", "wedge_port"]
 OUTDIR = "print_sections"
 
 MM = 1.0 / 25.4               # mm -> inch (STLs are in inches)
@@ -103,7 +106,7 @@ def dowel_points(mesh, axis, plane, a_lo, a_hi, b_lo, b_hi, n):
     return picks
 
 
-def slice_piece(mesh, name, out, log):
+def slice_piece(mesh, name, out, log, seq0=1):
     lo, hi = mesh.bounds
     ux, uy, uz = [(b - 2 * MARGIN) * MM for b in BED]
     xc, yc, zc = grid_cuts(lo[0], hi[0], ux), grid_cuts(lo[1], hi[1], uy), grid_cuts(lo[2], hi[2], uz)
@@ -147,17 +150,21 @@ def slice_piece(mesh, name, out, log):
                 except Exception:
                     continue
             mate[(i, j, k)].append((nb, len(pts))); mate[nb].append(((i, j, k), len(pts)))
-    # export
+    # export, numbered in print order: bottom layer first, then raster in x and y. That
+    # is also the bonding order, so chunk N only ever glues to chunks already printed.
+    order = sorted(cells, key=lambda c: (c[2], c[0], c[1]))
+    seq = {c: seq0 + n for n, c in enumerate(order)}
     rows = []
-    for idx, ((i, j, k), ch) in enumerate(sorted(cells.items())):
-        fn = f"{name}_x{i}y{j}z{k}.stl"
-        ch = clean_chunk(ch)                     # weld + repair -> clean manifold chunk
+    for (i, j, k) in order:
+        ch = clean_chunk(cells[(i, j, k)])       # weld + repair -> clean manifold chunk
+        fn = f"{seq[(i, j, k)]:03d}_{name}_x{i}y{j}z{k}.stl"
         ch.export(str(out / fn))
         d = (ch.bounds[1] - ch.bounds[0]) * IN
-        neigh = ";".join(f"x{n[0][0]}y{n[0][1]}z{n[0][2]}({n[1]})" for n in mate[(i, j, k)])
-        rows.append([name, fn, f"{i},{j},{k}", f"{d[0]:.0f}x{d[1]:.0f}x{d[2]:.0f}",
-                     f"{ch.volume:.1f}", neigh])
-    log(f"  {name:12} {len(cells):3d} chunks, {faces} glued faces, {dowels} dowel holes")
+        neigh = ";".join(f"#{seq[n[0]]:03d}({n[1]})" for n in mate[(i, j, k)] if n[0] in seq)
+        rows.append([f"{seq[(i, j, k)]:03d}", name, fn, f"{i},{j},{k}",
+                     f"{d[0]:.0f}x{d[1]:.0f}x{d[2]:.0f}", f"{ch.volume:.1f}", neigh])
+    log(f"  {name:12} {len(cells):3d} chunks, {faces} glued faces, {dowels} dowel holes"
+        f"   -> #{seq0:03d}..#{seq0 + len(cells) - 1:03d}")
     return rows, dowels
 
 
@@ -180,7 +187,7 @@ def make_dowel(out):
             c = c.intersection(cone) if False else c   # keep simple/robust
         except Exception:
             pass
-    c.export(str(out / "dowel.stl"))
+    c.export(str(out / "000_dowel.stl"))    # 000 so it sorts first: print these first
 
 
 def main():
@@ -198,14 +205,18 @@ def main():
         if not p.exists():
             continue
         m = prep(trimesh.load(str(p)))
-        rows, dw = slice_piece(m, name, out, log)
+        rows, dw = slice_piece(m, name, out, log, seq0=len(allrows) + 1)
         allrows += rows; total_dowels += dw
     make_dowel(out)
     with open(out / "manifest.csv", "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["piece", "file", "grid_ijk", "bbox_mm", "vol_in3", "mates_to(dowels)"])
+        w.writerow(["seq", "piece", "file", "grid_ijk", "bbox_mm", "vol_in3",
+                    "mates_to(dowels)"])
         w.writerows(allrows)
-    print(f"\nTOTAL: {len(allrows)} chunk STLs + dowel.stl  |  {total_dowels} dowels to print")
+    print(f"\nTOTAL: {len(allrows)} chunk STLs + 000_dowel.stl  |  {total_dowels} dowels")
+    print(f"Print in filename order: 000_dowel first, then #001 upward. Within each piece "
+          f"the numbering runs bottom layer up, so a chunk only ever bonds to lower-numbered "
+          f"neighbours (mates_to in the manifest names them).")
     print(f"Output: {out}/  (manifest.csv)")
 
 
