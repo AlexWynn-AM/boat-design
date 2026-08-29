@@ -1914,6 +1914,20 @@ def add_bow_keys(hull, pieces):
     return out, bow_key_specs(hull)
 
 
+def min_key_undercut():
+    """The smallest dovetail undercut on the boat, in design inches.
+
+    This is the HARD CEILING on any fit gap. Clearance grows the socket on every face, so
+    it eats undercut 1:1; once the gap reaches the undercut the socket is wider at its
+    mouth than the tongue is at its back and the key lifts straight out -- it stops being
+    a dovetail at all. It also does not scale: the undercut shrinks with the model while a
+    'scaled-up' clearance does not, which is exactly the trap this guards."""
+    u = [(KEY_BACK - KEY_MOUTH) / 2]
+    if BOW_KEYS:
+        u += [BKEY_CTR_BACK - BKEY_CTR_MOUTH, BKEY_SIDE_BACK - BKEY_SIDE_MOUTH]
+    return min(u)
+
+
 def check_pods_sealed(hull):
     """Worst hole-into-cavity overlap for the wedge bolts, in^3 REAL. Must be zero: each
     one is a blind hole in a sealed buoyancy pod. Nothing else in this file can catch a
@@ -3072,9 +3086,11 @@ def main():
     ap.add_argument("--scale", type=float, default=10)
     ap.add_argument("--key-clearance-mm", type=float, default=None,
                     help=f"per-face fit gap on every dovetail key/socket, in REAL mm "
-                         f"(default {KEY_CLR_MM}). It does NOT shrink with --scale, so a "
-                         f"1:N fit test wants about N x the gap you want on the model, "
-                         f"e.g. --scale 10 --key-clearance-mm 5")
+                         f"(default {KEY_CLR_MM}). It does NOT shrink with --scale -- but "
+                         f"do NOT just multiply it by N for a 1:N model either: the "
+                         f"undercut DOES shrink, and a gap bigger than it stops the keys "
+                         f"locking. The default already lands near 0.2 mm at 1:10, which "
+                         f"is a normal FDM slip fit. Every run prints the capture left.")
     ap.add_argument("--no-preview", action="store_true")
     ap.add_argument("--output-dir", default="split_out")
     args = ap.parse_args()
@@ -3087,11 +3103,19 @@ def main():
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
+    und_mm = min_key_undercut() * DESIGN_SCALE * 25.4
+    gap_m, und_m = clr_mm / args.scale, und_mm / args.scale
     print(f"Dovetail key fit gap: {clr_mm:.2f} mm per face on the real boat "
-          f"(= {clr_mm/args.scale:.3f} mm at 1:{args.scale:.0f}; clearance does NOT scale)")
-    if args.key_clearance_mm is None:          # only suggest it when this IS the design gap
-        print(f"  for a 1:{args.scale:.0f} FIT test rerun with "
-              f"--key-clearance-mm {clr_mm*args.scale:.0f}")
+          f"(= {gap_m:.2f} mm at 1:{args.scale:.0f}; clearance does NOT scale)")
+    print(f"  smallest key undercut {und_mm:.1f} mm real / {und_m:.2f} mm at "
+          f"1:{args.scale:.0f}  ->  capture left {und_mm-clr_mm:.1f} mm real, "
+          f"{und_m-gap_m:.2f} mm on the model")
+    if gap_m >= und_m:
+        print(f"  !! at 1:{args.scale:.0f} the gap EXCEEDS the undercut -- the keys would "
+              f"NOT lock. Do not scale the clearance up for a model.")
+    elif gap_m < 0.10:
+        print(f"  !! {gap_m:.2f} mm is below a printable fit at 1:{args.scale:.0f}; "
+              f"~0.2 mm wants --key-clearance-mm {0.2*args.scale:.0f}")
 
     hull = DinghyHull()
     # Derive the waterline BEFORE any geometry is built -- dovetail_params, _key_prism and
