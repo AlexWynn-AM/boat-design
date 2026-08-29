@@ -299,7 +299,20 @@ KEY_STUB = 0.5             # tongue stub reach outboard into the wedge body (des
 # the bow<->center keys. Given in REAL mm because it is a printing/fit allowance, not a
 # hull dimension -- so note it does NOT shrink with --scale: a 1:10 model wants roughly
 # 10x KEY_CLR_MM to fit like the real boat (see --key-clearance-mm).
-KEY_CLR_MM = 0.6            # real mm of gap per mating face
+#
+# SIZED FOR GLASS IN THE JOINT. The mating walls are exterior surfaces -- the center has to
+# float on its own and the wedge wall is the inboard skin of a sealed pod -- and a single
+# 0.5 mm perimeter over 12% gyroid weeps through its layer lines, so they get coated. In
+# practice that is asymmetric: a tongue is convex and takes 6 oz cloth (~0.3 mm), a socket
+# is a 16 mm deep flared slot that cloth only bridges and traps air in, so sockets get neat
+# or lightly thickened epoxy (~0.15 mm). ~0.45 mm of coating before tolerance. Add print
+# accuracy, bond-line error across a 144-chunk assembly, and differential ASA shrink over
+# the 732 mm between the first and last key -- three keys a side have to engage at once.
+# 0.6 mm (rev-3.4's first pass) was swallowed by the glass alone.
+# Loose is nearly free here: clearance eats the dovetail's capture margin 1:1, and the
+# wedge keys still hold 9.4 mm of it at 2.0. The bolts do the clamping; the keys only have
+# to resist pull-apart.
+KEY_CLR_MM = 2.0            # real mm of gap per mating face
 KEY_CLR = (KEY_CLR_MM / 25.4) / DESIGN_SCALE     # -> design inches
 
 NS = 30             # center outer-skin points (keel -> crossing)
@@ -379,8 +392,15 @@ BKEY_CTR_BACK = 1.1   # half-width in y at the flared back (> MOUTH => dovetail)
 BKEY_SIDE_Z0 = 9.4    # above the waterline, below the lower bolt
 BKEY_SIDE_H = 3.2
 BKEY_SIDE_MOUTH = 0.42
-BKEY_SIDE_BACK = 0.62
-BKEY_SIDE_EDGE = 0.15  # keep the key's outboard edge this far inside the flange's outer face
+# Widened with KEY_CLR (rev-3.4): these are the SMALL keys, and clearance comes straight
+# off the undercut. At BACK=0.62 the capture margin was 4.6 mm and a 2.0 mm gap would have
+# left 2.6; 0.75 restores it to ~5.5 mm. The wedge and centreline keys have 11.4/9.1 mm of
+# undercut and never needed the help.
+BKEY_SIDE_BACK = 0.75
+# Keep the key's outboard edge this far inside the flange's outer face -- measured on the
+# GROWN socket, so the clearance is added in: otherwise raising KEY_CLR walks the channel
+# out through the flange's own skin.
+BKEY_SIDE_EDGE = 0.15 + KEY_CLR
 
 # --- Solid BULKHEAD across the bottom of the bow/center joint (rev-3.3) ---------
 # The flange ring alone leaves the bottom of the x=BOW_SPLIT seam as a thin butt joint:
@@ -3068,9 +3088,10 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
 
     print(f"Dovetail key fit gap: {clr_mm:.2f} mm per face on the real boat "
-          f"(= {clr_mm/args.scale:.3f} mm at 1:{args.scale:.0f} -- clearance does NOT "
-          f"scale; rerun with --key-clearance-mm {clr_mm*args.scale:.0f} for a fit test "
-          f"that feels right on the model)")
+          f"(= {clr_mm/args.scale:.3f} mm at 1:{args.scale:.0f}; clearance does NOT scale)")
+    if args.key_clearance_mm is None:          # only suggest it when this IS the design gap
+        print(f"  for a 1:{args.scale:.0f} FIT test rerun with "
+              f"--key-clearance-mm {clr_mm*args.scale:.0f}")
 
     hull = DinghyHull()
     # Derive the waterline BEFORE any geometry is built -- dovetail_params, _key_prism and
