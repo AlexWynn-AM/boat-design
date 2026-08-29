@@ -11,6 +11,7 @@ Run:   .venv/bin/python slice_for_print.py            # X1C 256^3
 """
 import numpy as np, trimesh, csv, sys
 from pathlib import Path
+import dinghy_split as ds          # print constants live there; keep one copy of each
 
 # ---- params ----
 BED = (256.0, 256.0, 256.0)   # printer bed X,Y,Z (mm)  -- Bambu X1C default
@@ -25,6 +26,8 @@ MIN_CHUNK_IN3 = 0.06          # drop chunks below ~1 cm^3 of material
 # and y, which is also the order you bond them in.
 PIECES = ["bow", "center", "wedge_stbd", "wedge_port"]
 OUTDIR = "print_sections"
+WL = None                     # real-scale waterline; set in main(). Chunks reaching below
+                              # it get the denser infill (slam, beaching, wide shallow V).
 
 MM = 1.0 / 25.4               # mm -> inch (STLs are in inches)
 IN = 25.4
@@ -155,17 +158,60 @@ def slice_piece(mesh, name, out, log, seq0=1):
     order = sorted(cells, key=lambda c: (c[2], c[0], c[1]))
     seq = {c: seq0 + n for n, c in enumerate(order)}
     rows = []
+    low = []                                     # chunks reaching below the waterline
     for (i, j, k) in order:
         ch = clean_chunk(cells[(i, j, k)])       # weld + repair -> clean manifold chunk
         fn = f"{seq[(i, j, k)]:03d}_{name}_x{i}y{j}z{k}.stl"
-        ch.export(str(out / fn))
+        ch.export(str(out / name / fn))
         d = (ch.bounds[1] - ch.bounds[0]) * IN
+        if WL is not None and name in ds.INFILL_ZONED and ch.bounds[0][2] < WL:
+            low.append(seq[(i, j, k)])
         neigh = ";".join(f"#{seq[n[0]]:03d}({n[1]})" for n in mate[(i, j, k)] if n[0] in seq)
         rows.append([f"{seq[(i, j, k)]:03d}", name, fn, f"{i},{j},{k}",
                      f"{d[0]:.0f}x{d[1]:.0f}x{d[2]:.0f}", f"{ch.volume:.1f}", neigh])
     log(f"  {name:12} {len(cells):3d} chunks, {faces} glued faces, {dowels} dowel holes"
         f"   -> #{seq0:03d}..#{seq0 + len(cells) - 1:03d}")
-    return rows, dowels
+    return rows, dowels, low
+
+
+PROFILE = """{title}
+{rule}
+{n} chunks, files {lo}..{hi}   |   {dowels} dowels   |   ~{kg:.1f} kg ASA
+Print time roughly {h4:.0f} h with a 0.4 nozzle, {h6:.0f} h with a 0.6.
+
+SETTINGS
+  Printer      X1C, and it must be ENCLOSED. ASA warps and splits in open air.
+  Filament     ASA, stock profile. Flow caps around 16 mm3/s.
+  Nozzle       0.6 preferred. 0.4 works and takes about 1.7x as long.
+  Layer        0.24 mm.
+  Bed          ENCLOSURE DOOR SHUT and chamber warm before the first layer.
+  Walls        1 perimeter at 0.5 mm extrusion width. The print is a glass
+               substrate, not a finish surface, so one clean wall is enough.
+  INFILL       {infill}
+               GYROID, not grid. It is isotropic and much better in shear,
+               which is the whole job of the core in a 7 mm sandwich wall.
+  Overlap      infill/wall 25%.
+  Top/bottom   3 layers each, top shell thickness floor set to 0.
+  Brim         outer, 6 to 8 mm. Every chunk wants it.
+
+ORDER
+  Print 000_dowel.stl first, in the folder above this one.
+  Then work up in file order. The numbering runs bottom layer first, so a
+  chunk only ever bonds to lower-numbered neighbours that are already printed.
+  manifest.csv in the folder above names which chunks each one mates to.
+
+DOWELS
+  Holes are 4.2 mm for the 4.0 mm printed dowels, 6 mm deep each side.
+  Dry-fit before glue. Abrade and solvent-wipe the faces: the ASA to epoxy
+  bond is the least forgiving joint on the boat.
+{extra}"""
+
+
+def write_profile(out, name, title, lo, hi, n, dowels, kg, infill, extra=""):
+    h4 = kg * 1e6 / ds.ASA_DENSITY / 12.0 / 3600.0
+    (out / name / "PROFILE.txt").write_text(PROFILE.format(
+        title=title, rule="=" * len(title), n=n, lo=lo, hi=hi, dowels=dowels,
+        kg=kg, h4=h4, h6=h4 * 12.0 / 20.0, infill=infill, extra=extra))
 
 
 def make_dowel(out):
@@ -190,11 +236,31 @@ def make_dowel(out):
     c.export(str(out / "000_dowel.stl"))    # 000 so it sorts first: print these first
 
 
+TITLES = {"bow": "BOW", "center": "CENTER BARGE",
+          "wedge_stbd": "STARBOARD WEDGE POD", "wedge_port": "PORT WEDGE POD"}
+EXTRA = {
+ "bow": "\nThe bow is narrow and doubly curved, so it carries load in membrane action\n"
+        "rather than bending. Its shape does the work a denser core would, which is\n"
+        "why it runs lean all the way through.\n",
+ "center": "\nThe center is the flexible one. Its bottom is a 42 inch wide shallow V and\n"
+           "its sole spans the full beam, so nothing in the shape stiffens them. That is\n"
+           "what the denser core and the 14 mm sole are both for.\n",
+ "wedge_port": "\nWatch #134: it is 240.7 mm on its longest side against a 240 mm usable\n"
+               "envelope. It fits, but with no room for skirt. Plate that one first.\n",
+}
+
+
 def main():
+    global WL
+    _h = ds.DinghyHull()
+    WL = ds.set_waterline_from_load(_h) * ds.DESIGN_SCALE
     out = Path("split_out") / (OUTDIR if len(sys.argv) < 2 else sys.argv[1])
     out.mkdir(parents=True, exist_ok=True)
-    for old in list(out.glob("*.stl")) + list(out.glob("manifest.csv")):
+    for old in (list(out.glob("*.stl")) + list(out.glob("manifest.csv"))
+                + list(out.glob("*/*.stl")) + list(out.glob("*/PROFILE.txt"))):
         old.unlink()                             # wipe stale chunks (grid changes per bed)
+    for name in PIECES:
+        (out / name).mkdir(exist_ok=True)
     lines = []
     log = lambda s: (print(s), lines.append(s))
     print(f"Slicing for bed {BED[0]:.0f}x{BED[1]:.0f}x{BED[2]:.0f}mm "
@@ -205,8 +271,27 @@ def main():
         if not p.exists():
             continue
         m = prep(trimesh.load(str(p)))
-        rows, dw = slice_piece(m, name, out, log, seq0=len(allrows) + 1)
+        seq0 = len(allrows) + 1
+        rows, dw, low = slice_piece(m, name, out, log, seq0=seq0)
         allrows += rows; total_dowels += dw
+        hi = seq0 + len(rows) - 1
+        perim = min(m.volume, m.area * ds.PERIM_SHELL / 25.4)
+        core = max(0.0, m.volume - perim)
+        f_lo = (ds._volume_below(m, WL) / m.volume
+                if (name in ds.INFILL_ZONED and m.volume > 0) else 0.0)
+        rate = ds.INFILL * f_lo + ds.INFILL_TOPSIDE * (1 - f_lo)
+        kg = (perim + core * rate) * 16.387064 * ds.ASA_DENSITY / 1000.0
+        if len(low) == len(rows):
+            inf = f"{ds.INFILL:.0%} for every chunk in this folder."
+        elif not low:
+            inf = f"{ds.INFILL_TOPSIDE:.0%} for every chunk in this folder."
+        else:
+            inf = (f"{ds.INFILL:.0%} for #{min(low):03d}..#{max(low):03d}, then "
+                   f"{ds.INFILL_TOPSIDE:.0%} for #{max(low)+1:03d}..#{hi:03d}.\n"
+                   f"               The split is the waterline: everything reaching below it\n"
+                   f"               takes slamming and beaching loads.")
+        write_profile(out, name, TITLES.get(name, name.upper()), f"#{seq0:03d}",
+                      f"#{hi:03d}", len(rows), dw, kg, inf, EXTRA.get(name, ""))
     make_dowel(out)
     with open(out / "manifest.csv", "w", newline="") as f:
         w = csv.writer(f)

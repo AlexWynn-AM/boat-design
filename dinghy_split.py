@@ -102,8 +102,18 @@ ASA_DENSITY = 1.07      # g/cm^3 (ASA filament)
 #   INFILL = the remaining material volume * INFILL  (sparse lattice in thicker regions)
 PERIM_SHELL = 0.5       # mm SOLID perimeter per face = 1 perimeter (set to YOUR extrusion
                         # width). The print is a glass core/mold, so 1 clean shell is enough.
-INFILL = 0.12           # infill density beyond the perimeter (use GYROID -- isotropic + best shear
-                        # as a sandwich core; grid is weaker/anisotropic in shear)
+# Infill is ZONED by the waterline. Below it the panels take slamming and beaching, and
+# the center's bottom is a 42" wide shallow V with nothing in its shape to stiffen it.
+# Above it the panels are narrow and doubly curved, so they carry load in membrane action
+# rather than bending and need far less from the core; the 3 mm okume version of this boat
+# is rock solid in the bow and flexible across the wide flat spans for exactly that reason.
+# Use GYROID, not grid: isotropic, and much better in shear as a sandwich core.
+INFILL = 0.12           # below the waterline, on the pieces named in INFILL_ZONED
+INFILL_TOPSIDE = 0.08   # everywhere else
+# Only the CENTER earns the denser core. Its bottom is a 42" wide shallow V and its sole
+# spans the full beam, so neither has any curvature to stiffen it. The bow and the wedges
+# are narrow and doubly curved end to end and run lean throughout.
+INFILL_ZONED = ("center",)
 # Fiberglass schedule by ZONE (laminated areal mass incl. resin, kg/m^2).
 # Rev-3.4: ONE FABRIC -- 6 oz plain weave everywhere, doubled on the bottom (2nd layer at
 # 45 deg to the first). Was 1708 biax on the bottom + 4 oz on the deck.
@@ -2378,21 +2388,43 @@ def glass_zones(m, do_interior):
     return s(bottom), s(topside), s(deck), s(interior)
 
 
-def estimate_weight(reals):
+def _volume_below(m, z):
+    """Material volume of `m` below height z, by boolean. Falls back to the whole volume."""
+    import trimesh
+    lo, hi = m.bounds
+    if z <= lo[2]:
+        return 0.0
+    if z >= hi[2]:
+        return float(m.volume)
+    box = trimesh.creation.box(bounds=np.array(
+        [[lo[0] - 1, lo[1] - 1, lo[2] - 1], [hi[0] + 1, hi[1] + 1, z]]))
+    try:
+        return float(m.intersection(box).volume)
+    except Exception:
+        return float(m.volume)
+
+
+def estimate_weight(reals, wl):
     """Rough built weight of the full-size ASA-printed + fiberglassed boat (REAL meshes).
-    Print mass = SKIN (area*perimeter, ~solid) + INFILL (rest of volume * INFILL).
-    Glass mass = zoned area * the per-zone schedule areal weights."""
+    Print mass = SKIN (area*perimeter, ~solid) + INFILL (rest of volume * the zoned rate).
+    Glass mass = zoned area * the per-zone schedule areal weights. `wl` is the real-scale
+    waterline height that splits the two infill zones."""
     IN3_TO_CM3, IN2_TO_M2 = 16.387064, 0.00064516
     perim_in = PERIM_SHELL / 25.4
     print(f"\nWeight estimate (full size):  [ASA {ASA_DENSITY} g/cm^3, skin {PERIM_SHELL:.1f} mm, "
-          f"infill {INFILL:.0%} | glass kg/m^2: bot {GLASS_BOTTOM} side {GLASS_TOPSIDE} "
+          f"infill {INFILL:.0%} below the waterline / {INFILL_TOPSIDE:.0%} above "
+          f"| glass kg/m^2: bot {GLASS_BOTTOM} side {GLASS_TOPSIDE} "
           f"deck {GLASS_DECK} in {GLASS_INSIDE}]")
     print(f"  {'piece':12} {'skin':>6} {'infill':>7} {'glass':>6} {'total kg':>9}")
     tot = 0.0
     for name, m in reals.items():
         perim_vol = min(m.volume, m.area * perim_in)
         skin = perim_vol * IN3_TO_CM3 * ASA_DENSITY / 1000.0
-        infl = max(0.0, m.volume - perim_vol) * IN3_TO_CM3 * ASA_DENSITY * INFILL / 1000.0
+        core = max(0.0, m.volume - perim_vol)                 # what the lattice fills
+        f_lo = (_volume_below(m, wl) / m.volume
+                if (name in INFILL_ZONED and m.volume > 0) else 0.0)
+        rate = INFILL * f_lo + INFILL_TOPSIDE * (1.0 - f_lo)  # volume-weighted zone blend
+        infl = core * IN3_TO_CM3 * ASA_DENSITY * rate / 1000.0
         b, t, d, i = (z * IN2_TO_M2 for z in glass_zones(m, GLASS_INTERIOR_OF.get(name, True)))
         glass = b * GLASS_BOTTOM + t * GLASS_TOPSIDE + d * GLASS_DECK + i * GLASS_INSIDE
         pt = skin + infl + glass
@@ -3374,7 +3406,7 @@ def main():
     print(f"  Composite assembled: dinghy_assembled.stl  "
           f"({cd[0]:.0f} x {cd[1]:.0f} x {cd[2]:.0f} in)")
 
-    _hull_kg = estimate_weight(reals)
+    _hull_kg = estimate_weight(reals, waterline_z(hull) * DESIGN_SCALE)
     report_hydrostatics(hull, _hull_kg * 2.2046)
 
     # Fit / transport summary -- real boat (design x DESIGN_SCALE)
