@@ -23,6 +23,10 @@ try:
 except Exception:
     FLOW = 16.0
 FLOW_MAX = 20.0                # headroom before a 0.4 hotend starts under-extruding
+try:
+    TEMP = int(float(_fil["nozzle_temperature"][0]))
+except Exception:
+    TEMP = 275
 
 # ---- params ----
 BED = (256.0, 256.0, 256.0)   # printer bed X,Y,Z (mm)  -- Bambu X1C default
@@ -193,7 +197,7 @@ or {h6:.0f} h if you raise it to {flowmax:.0f} (see the note at the bottom).
 
 SETTINGS
   Printer      X1C, and it must be ENCLOSED. ASA warps and splits in open air.
-  Filament     boatASA: 270 C, {flow:.0f} mm3/s cap. Stock Generic ASA is 260 C
+  Filament     boatASA: {temp} C, {flow:.0f} mm3/s cap. Stock Generic ASA is 260 C
                and 12 mm3/s, so this is already the boosted profile.
   Nozzle       0.4. With no 0.6 to swap to, the volumetric cap below is the
                only speed lever on this job.
@@ -220,14 +224,19 @@ DOWELS
   Dry-fit before glue. Abrade and solvent-wipe the faces: the ASA to epoxy
   bond is the least forgiving joint on the boat.
 
-FLOW
-  The profile is at {flow:.0f} mm3/s and 270 C, already up from the stock 12 and
-  260. The ASA base allows 28.6 and the filament's range tops out at 280, so
-  there is room left. Going to {flowmax:.0f} mm3/s at 275-280 C takes roughly a fifth
-  off the clock and is worth having on a job this long.
-  Validate it before committing: run Bambu's max volumetric speed test and
-  look for under-extrusion on the fast passes. Too high shows up as thin,
-  gappy walls, which on a one-perimeter print is the whole wall.
+FLOW  --  the cap is what sets your speed, and it has NOT been tested yet
+  This profile's speeds ask for 24 mm3/s on outer walls and 27.6 on inner
+  walls and infill. The {flow:.0f} mm3/s cap throttles all of them to about 58%
+  of profile speed, so every increase up to ~27 buys time almost linearly:
+
+        12 mm3/s   446 h        16 mm3/s   334 h        20 mm3/s   267 h
+
+  RUN THE CALIBRATION FIRST. Bambu Studio's max volumetric speed test takes
+  about 20 minutes against a 334 hour job. Under-extrusion here does not
+  fail loudly, it thins every wall slightly across all 149 chunks, and on a
+  one-perimeter print the wall is the entire part.
+  Set the cap to the tested figure less about 10%. Change one thing at a
+  time: the temperature moved to {temp} C for this run, so test at {temp}.
 {extra}"""
 
 
@@ -235,7 +244,7 @@ def write_profile(out, name, title, lo, hi, n, dowels, kg, infill, extra="", pre
     h4 = kg * 1e6 / ds.ASA_DENSITY / FLOW / 3600.0
     (out / name / "PROFILE.txt").write_text(PROFILE.format(
         title=title, rule="=" * len(title), n=n, lo=lo, hi=hi, dowels=dowels,
-        kg=kg, h4=h4, h6=h4 * FLOW / FLOW_MAX, flow=FLOW, flowmax=FLOW_MAX,
+        kg=kg, h4=h4, h6=h4 * FLOW / FLOW_MAX, flow=FLOW, flowmax=FLOW_MAX, temp=TEMP,
         infill=infill, extra=extra, preset=preset))
 
 

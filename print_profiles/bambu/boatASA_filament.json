@@ -12,10 +12,10 @@
     "inherits": "Generic ASA",
     "name": "boatASA",
     "nozzle_temperature": [
-        "270"
+        "275"
     ],
     "nozzle_temperature_initial_layer": [
-        "270"
+        "275"
     ],
     "version": "2.6.0.5"
 }

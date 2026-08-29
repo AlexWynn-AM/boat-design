@@ -50,7 +50,7 @@ brim_width             8 mm
 Filament, inheriting `Generic ASA`:
 
 ```
-nozzle_temperature              270 C  (also on the initial layer)
+nozzle_temperature              275 C  (also on the initial layer)
 filament_max_volumetric_speed   16 mm3/s
 ```
 
@@ -64,8 +64,13 @@ in the preset now. Everything else is byte-identical to the tuned original.
 is the only speed lever on the job. It is already boosted: stock Generic ASA is
 12 mm3/s at 260 C, this profile is 16 at 270.
 
-There is room left. The ASA base allows 28.6 and the filament's temperature
-range tops out at 280, so 20 mm3/s at 275-280 C is reachable:
+**Neither the cap nor the temperature has been print-tested yet.** Treat both as
+starting points, not settings.
+
+The cap is genuinely what governs. This process profile asks for 24 mm3/s on
+outer walls and 27.6 on inner walls and sparse infill, so a 16 cap throttles
+every one of those moves to about 58% of profile speed. Anything up to roughly
+27 converts into time almost linearly:
 
 ```
 12 mm3/s   446 h    stock
@@ -73,7 +78,16 @@ range tops out at 280, so 20 mm3/s at 275-280 C is reachable:
 20 mm3/s   267 h    the remaining headroom
 ```
 
-Validate before committing to it. Run Bambu's max volumetric speed test and look
-for under-extrusion on the fast passes. Too high shows up as thin, gappy walls,
-and on a one-perimeter print the wall is the whole part. The preset is left at
-the 16 you tested rather than a number nobody has run.
+Temperature is set to 275 C. ASA's usual guidance for interlayer strength is
+265-280 C, 5-10 C above the 260-270 default, and an enclosure makes the top of
+that range safer because the part cools slowly enough for polymer chains to
+diffuse across the layer interface. That matters more here than usual: these
+chunks print at one perimeter, so the wall is the entire part and its weak axis
+is Z. 280 C is left on the table deliberately, since it is the top of the
+filament's stated range with no margin and too hot degrades adhesion much as too
+cold does.
+
+Run the max volumetric speed calibration at 275 C before committing. It takes
+about 20 minutes against a 334 hour job. Under-extrusion does not fail loudly
+here, it thins every wall slightly across all 149 chunks. Set the cap to the
+tested figure less about 10%, and change one thing at a time.
