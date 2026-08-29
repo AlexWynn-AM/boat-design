@@ -3,8 +3,10 @@
 slice_for_print.py - cut the full-size boat pieces into printer-bed-sized sections
 with printed-ASA dowel alignment holes, + a batch dowel STL + a mating manifest.
 
-Input : split_out/{center,wedge_stbd,wedge_port,bow}.stl  (inches, full size)
+Input : split_out/{center,wedge_stbd,wedge_port,bow}.stl  (INCHES, full size)
 Output: split_out/print_sections/  (numbered chunk STLs, dowel.stl, manifest.csv)
+        Chunks are written in MILLIMETRES: STL carries no units and slicers assume
+        mm, so exporting the inch geometry directly imports at 1/25.4 size.
 
 Run:   .venv/bin/python slice_for_print.py            # X1C 256^3
        BED / PIECES overridable via the params below.
@@ -67,7 +69,12 @@ def _nm_edges(m):
 
 
 def clean_chunk(ch):
-    """Make a cut chunk cleanly manifold. Standard weld first; if still non-watertight or
+    """Make a cut chunk cleanly manifold. CALL THIS AT EXPORT SCALE (mm), never in the
+    inch working space: it simulates the float32 round-trip an STL performs, and a vertex
+    pair that is distinct in inches can still collapse once multiplied by 25.4. Repairing
+    in inches and then scaling produced three non-manifold chunks out of 149.
+
+    Standard weld first; if still non-watertight or
     non-manifold (boolean/dowel slivers at high res), repair at float32 precision then
     pymeshfix, keeping the repair if it preserves the chunk volume (<=15% -- a small tile
     that gets glued + glassed tolerates a sliver repair)."""
@@ -175,15 +182,23 @@ def slice_piece(mesh, name, out, log, seq0=1):
     rows = []
     low = []                                     # chunks reaching below the waterline
     for (i, j, k) in order:
-        ch = clean_chunk(cells[(i, j, k)])       # weld + repair -> clean manifold chunk
+        raw = cells[(i, j, k)]
+        if WL is not None and name in ds.INFILL_ZONED and raw.bounds[0][2] < WL:
+            low.append(seq[(i, j, k)])           # zone test belongs in the inch working space
+        # EXPORT IN MILLIMETRES. Everything upstream is in inches, because the hull is
+        # drawn in inches, but an STL carries no units and every slicer assumes mm, so an
+        # inch-scale chunk imports at 1/25.4 size. Scale BEFORE cleaning so the repair
+        # runs at the scale the file will actually carry.
+        ch = raw.copy()
+        ch.apply_scale(IN)
+        ch = clean_chunk(ch)                     # weld + repair -> clean manifold chunk
         fn = f"{seq[(i, j, k)]:03d}_{name}_x{i}y{j}z{k}.stl"
         ch.export(str(out / name / fn))
-        d = (ch.bounds[1] - ch.bounds[0]) * IN
-        if WL is not None and name in ds.INFILL_ZONED and ch.bounds[0][2] < WL:
-            low.append(seq[(i, j, k)])
+        d = ch.bounds[1] - ch.bounds[0]          # already mm
         neigh = ";".join(f"#{seq[n[0]]:03d}({n[1]})" for n in mate[(i, j, k)] if n[0] in seq)
         rows.append([f"{seq[(i, j, k)]:03d}", name, fn, f"{i},{j},{k}",
-                     f"{d[0]:.0f}x{d[1]:.0f}x{d[2]:.0f}", f"{ch.volume:.1f}", neigh])
+                     f"{d[0]:.0f}x{d[1]:.0f}x{d[2]:.0f}",
+                     f"{ch.volume / IN ** 3:.1f}", neigh])
     log(f"  {name:12} {len(cells):3d} chunks, {faces} glued faces, {dowels} dowel holes"
         f"   -> #{seq0:03d}..#{seq0 + len(cells) - 1:03d}")
     return rows, dowels, low
@@ -192,8 +207,7 @@ def slice_piece(mesh, name, out, log, seq0=1):
 PROFILE = """{title}
 {rule}
 {n} chunks, files {lo}..{hi}   |   {dowels} dowels   |   ~{kg:.1f} kg ASA
-Print time roughly {h4:.0f} h at the profile's {flow:.0f} mm3/s cap,
-or {h6:.0f} h if you raise it to {flowmax:.0f} (see the note at the bottom).
+Print time roughly {h4:.0f} h at the profile's {flow:.0f} mm3/s cap.
 
 SETTINGS
   Printer      X1C, and it must be ENCLOSED. ASA warps and splits in open air.
@@ -203,6 +217,7 @@ SETTINGS
                only speed lever on this job.
   Preset       {preset}   (print_profiles/bambu/ in the repo)
   Layer        0.24 mm.
+  Units        the STLs are in mm. Import at 100%, do not rescale.
   Bed          ENCLOSURE DOOR SHUT and chamber warm before the first layer.
   Walls        1 perimeter at 0.5 mm extrusion width. The print is a glass
                substrate, not a finish surface, so one clean wall is enough.
@@ -224,19 +239,26 @@ DOWELS
   Dry-fit before glue. Abrade and solvent-wipe the faces: the ASA to epoxy
   bond is the least forgiving joint on the boat.
 
-FLOW  --  the cap is what sets your speed, and it has NOT been tested yet
-  This profile's speeds ask for 24 mm3/s on outer walls and 27.6 on inner
-  walls and infill. The {flow:.0f} mm3/s cap throttles all of them to about 58%
-  of profile speed, so every increase up to ~27 buys time almost linearly:
+FLOW  --  {flow:.0f} mm3/s at {temp} C, measured on this machine
+  Set from a real print, not a catalogue. For reference, Bambu ship 18 for
+  their own ASA on an X1C with a 0.4 nozzle and 18 at 275 C for ASA-CF;
+  Generic ASA sits at 12 only because the filament is unknown. {flow:.0f} is above
+  their figure and matches what they ship for the H2S high-flow hotend, so
+  it rests on the test rather than on the catalogue.
+
+  It governs the whole job. This process asks for 24 mm3/s on outer walls
+  and 27.6 on inner walls and infill, so the cap throttles every one of
+  those moves:
 
         12 mm3/s   446 h        16 mm3/s   334 h        20 mm3/s   267 h
 
-  RUN THE CALIBRATION FIRST. Bambu Studio's max volumetric speed test takes
-  about 20 minutes against a 334 hour job. Under-extrusion here does not
-  fail loudly, it thins every wall slightly across all 149 chunks, and on a
-  one-perimeter print the wall is the entire part.
-  Set the cap to the tested figure less about 10%. Change one thing at a
-  time: the temperature moved to {temp} C for this run, so test at {temp}.
+  KEEP LOOKING AS THE PARTS GET BIGGER. Under-extrusion does not fail
+  loudly: it thins every wall slightly, and on a one-perimeter print the
+  wall is the entire part. The early bow chunks are small, so they ask less
+  of the hotend than a 240 mm center chunk running long infill passes will.
+  Check the top surface and the wall against strong light. Gaps between
+  adjacent extrusions, a wall you can see through, or a grainy top face
+  mean back the cap off.
 {extra}"""
 
 
@@ -267,7 +289,8 @@ def make_dowel(out):
             c = c.intersection(cone) if False else c   # keep simple/robust
         except Exception:
             pass
-    c.export(str(out / "000_dowel.stl"))    # 000 so it sorts first: print these first
+    c.apply_scale(IN)                      # mm for the slicer, like the chunks
+    c.export(str(out / "000_dowel.stl"))   # 000 so it sorts first: print these first
 
 
 TITLES = {"bow": "BOW", "center": "CENTER BARGE",
@@ -282,6 +305,40 @@ EXTRA = {
  "wedge_port": "\nWatch #134: it is 240.7 mm on its longest side against a 240 mm usable\n"
                "envelope. It fits, but with no room for skirt. Plate that one first.\n",
 }
+
+
+def verify_exports(out, log):
+    """Check every STL that was actually written, and repair any that is not a clean
+    manifold. This runs on the exported bytes rather than on the in-memory mesh, which is
+    the only thing that matters to a slicer, and it catches what clean_chunk cannot:
+    clean_chunk feeds pymeshfix a mesh it has already run fix_normals over, and on a
+    non-manifold input that scrambles winding enough to defeat the repair. Re-running it
+    on the reloaded file, untouched, fixes those. Returns the number repaired."""
+    import pymeshfix
+    fixed, failed = 0, []
+    for f in sorted(out.glob("*/*.stl")) + sorted(out.glob("*.stl")):
+        m = trimesh.load(str(f))
+        if m.is_watertight and _nm_edges(m) == 0 and m.body_count == 1:
+            continue
+        v0 = abs(m.volume)
+        vc, fc = pymeshfix.clean_from_arrays(
+            np.ascontiguousarray(m.vertices, np.float64),
+            np.ascontiguousarray(m.faces, np.int32),
+            joincomp=True, remove_smallest_components=False)
+        r = trimesh.Trimesh(vc, fc); r.merge_vertices(); trimesh.repair.fix_normals(r)
+        ok = (r.is_watertight and _nm_edges(r) == 0 and r.body_count == 1
+              and (v0 <= 0 or abs(abs(r.volume) - v0) / v0 <= 0.02))
+        if ok:
+            r.export(str(f)); fixed += 1
+        else:
+            failed.append(f.name)
+    if fixed:
+        log(f"  repaired {fixed} exported chunk(s) that were not clean manifolds")
+    if failed:
+        log(f"  !! STILL NOT CLEAN: {', '.join(failed)}")
+    else:
+        log("  every exported STL verified: watertight, manifold, single body")
+    return fixed
 
 
 def main():
@@ -331,6 +388,7 @@ def main():
                       f"#{hi:03d}", len(rows), dw, kg, inf, EXTRA.get(name, ""),
                       preset=preset)
     make_dowel(out)
+    verify_exports(out, log)
     with open(out / "manifest.csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["seq", "piece", "file", "grid_ijk", "bbox_mm", "vol_in3",
