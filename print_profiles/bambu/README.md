@@ -60,7 +60,20 @@ filament_max_volumetric_speed   16 mm3/s
 per plate, which is exactly how a chunk ends up printed without a brim. They are
 in the preset now. Everything else is byte-identical to the tuned original.
 
-**These are 0.4 nozzle presets.** The parent is `0.24mm Draft @BBL X1C`, which is
-the 0.4 profile. A 0.6 nozzle cuts the job from roughly 430 hours to 260, but it
-needs re-deriving from a 0.6 parent, and the 16 mm3/s volumetric cap should come
-up with it.
+**These are 0.4 nozzle presets**, and with no 0.6 to swap to, the volumetric cap
+is the only speed lever on the job. It is already boosted: stock Generic ASA is
+12 mm3/s at 260 C, this profile is 16 at 270.
+
+There is room left. The ASA base allows 28.6 and the filament's temperature
+range tops out at 280, so 20 mm3/s at 275-280 C is reachable:
+
+```
+12 mm3/s   446 h    stock
+16 mm3/s   334 h    this profile
+20 mm3/s   267 h    the remaining headroom
+```
+
+Validate before committing to it. Run Bambu's max volumetric speed test and look
+for under-extrusion on the fast passes. Too high shows up as thin, gappy walls,
+and on a one-perimeter print the wall is the whole part. The preset is left at
+the 16 you tested rather than a number nobody has run.

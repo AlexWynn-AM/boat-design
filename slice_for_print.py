@@ -11,7 +11,18 @@ Run:   .venv/bin/python slice_for_print.py            # X1C 256^3
 """
 import numpy as np, trimesh, csv, sys
 from pathlib import Path
+import json
 import dinghy_split as ds          # print constants live there; keep one copy of each
+
+# Speed is set by the filament's volumetric cap, not the nozzle: with a 0.4 nozzle and no
+# 0.6 to swap to, the cap IS the only lever. Read it from the saved preset so the time
+# estimates in every PROFILE.txt track the profile actually being run.
+try:
+    _fil = json.load(open("print_profiles/bambu/boatASA_filament.json"))
+    FLOW = float(_fil["filament_max_volumetric_speed"][0])
+except Exception:
+    FLOW = 16.0
+FLOW_MAX = 20.0                # headroom before a 0.4 hotend starts under-extruding
 
 # ---- params ----
 BED = (256.0, 256.0, 256.0)   # printer bed X,Y,Z (mm)  -- Bambu X1C default
@@ -177,12 +188,15 @@ def slice_piece(mesh, name, out, log, seq0=1):
 PROFILE = """{title}
 {rule}
 {n} chunks, files {lo}..{hi}   |   {dowels} dowels   |   ~{kg:.1f} kg ASA
-Print time roughly {h4:.0f} h with a 0.4 nozzle, {h6:.0f} h with a 0.6.
+Print time roughly {h4:.0f} h at the profile's {flow:.0f} mm3/s cap,
+or {h6:.0f} h if you raise it to {flowmax:.0f} (see the note at the bottom).
 
 SETTINGS
   Printer      X1C, and it must be ENCLOSED. ASA warps and splits in open air.
-  Filament     ASA, stock profile. Flow caps around 16 mm3/s.
-  Nozzle       0.6 preferred. 0.4 works and takes about 1.7x as long.
+  Filament     boatASA: 270 C, {flow:.0f} mm3/s cap. Stock Generic ASA is 260 C
+               and 12 mm3/s, so this is already the boosted profile.
+  Nozzle       0.4. With no 0.6 to swap to, the volumetric cap below is the
+               only speed lever on this job.
   Preset       {preset}   (print_profiles/bambu/ in the repo)
   Layer        0.24 mm.
   Bed          ENCLOSURE DOOR SHUT and chamber warm before the first layer.
@@ -205,14 +219,24 @@ DOWELS
   Holes are 4.2 mm for the 4.0 mm printed dowels, 6 mm deep each side.
   Dry-fit before glue. Abrade and solvent-wipe the faces: the ASA to epoxy
   bond is the least forgiving joint on the boat.
+
+FLOW
+  The profile is at {flow:.0f} mm3/s and 270 C, already up from the stock 12 and
+  260. The ASA base allows 28.6 and the filament's range tops out at 280, so
+  there is room left. Going to {flowmax:.0f} mm3/s at 275-280 C takes roughly a fifth
+  off the clock and is worth having on a job this long.
+  Validate it before committing: run Bambu's max volumetric speed test and
+  look for under-extrusion on the fast passes. Too high shows up as thin,
+  gappy walls, which on a one-perimeter print is the whole wall.
 {extra}"""
 
 
 def write_profile(out, name, title, lo, hi, n, dowels, kg, infill, extra="", preset=""):
-    h4 = kg * 1e6 / ds.ASA_DENSITY / 12.0 / 3600.0
+    h4 = kg * 1e6 / ds.ASA_DENSITY / FLOW / 3600.0
     (out / name / "PROFILE.txt").write_text(PROFILE.format(
         title=title, rule="=" * len(title), n=n, lo=lo, hi=hi, dowels=dowels,
-        kg=kg, h4=h4, h6=h4 * 12.0 / 20.0, infill=infill, extra=extra, preset=preset))
+        kg=kg, h4=h4, h6=h4 * FLOW / FLOW_MAX, flow=FLOW, flowmax=FLOW_MAX,
+        infill=infill, extra=extra, preset=preset))
 
 
 def make_dowel(out):
