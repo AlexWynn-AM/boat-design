@@ -68,6 +68,7 @@ With the defaults, `split_out/` receives:
 - Full-size inch STLs: `center.stl`, `wedge_stbd.stl`, `wedge_port.stl`, and `bow.stl`.
 - 1:10 millimetre STLs: the same names with `_1to10_mm` appended.
 - `dinghy_assembled.stl` and `dinghy_assembled_1to10_mm.stl`: concatenated four-piece assemblies for viewing. They retain the individual shells rather than boolean-unioning them into one solid.
+- `print_ready/`: the same 1:N model STLs rotated onto whichever face gives the largest first-layer contact and dropped to z = 0. A hull has no flat face. The foredeck carries no camber but does carry the sheer spring, rising 2.5 design inches from the split to the stem, so a bow laid deck-down at 1:10 touches the plate over about 2 mm2 and stands 5 mm off it at the far end. Standing it on the x = 60 mating face is worse, because the three key tongues reach 1.8 mm proud of that plane. Slice these as-is and add a brim; the residual is a few tenths of a millimetre of sheer curvature. The full-size boat does not need this, since `slice_for_print.py` cuts it into bed-sized chunks whose cut faces are flat.
 - Preview images, unless `--no-preview` is used: `split_preview.png`, `dovetail_detail.png`, `transport_packing.png`, `bolts.png`, `bow_flare_compare.png`, `bow_flare_3d.png`, `iface_flange.png`, and `bow_keys.png`.
 
 Two optional post-processors use the default `split_out/` path:
