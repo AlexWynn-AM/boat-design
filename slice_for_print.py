@@ -183,6 +183,7 @@ SETTINGS
   Printer      X1C, and it must be ENCLOSED. ASA warps and splits in open air.
   Filament     ASA, stock profile. Flow caps around 16 mm3/s.
   Nozzle       0.6 preferred. 0.4 works and takes about 1.7x as long.
+  Preset       {preset}   (print_profiles/bambu/ in the repo)
   Layer        0.24 mm.
   Bed          ENCLOSURE DOOR SHUT and chamber warm before the first layer.
   Walls        1 perimeter at 0.5 mm extrusion width. The print is a glass
@@ -207,11 +208,11 @@ DOWELS
 {extra}"""
 
 
-def write_profile(out, name, title, lo, hi, n, dowels, kg, infill, extra=""):
+def write_profile(out, name, title, lo, hi, n, dowels, kg, infill, extra="", preset=""):
     h4 = kg * 1e6 / ds.ASA_DENSITY / 12.0 / 3600.0
     (out / name / "PROFILE.txt").write_text(PROFILE.format(
         title=title, rule="=" * len(title), n=n, lo=lo, hi=hi, dowels=dowels,
-        kg=kg, h4=h4, h6=h4 * 12.0 / 20.0, infill=infill, extra=extra))
+        kg=kg, h4=h4, h6=h4 * 12.0 / 20.0, infill=infill, extra=extra, preset=preset))
 
 
 def make_dowel(out):
@@ -290,8 +291,12 @@ def main():
                    f"{ds.INFILL_TOPSIDE:.0%} for #{max(low)+1:03d}..#{hi:03d}.\n"
                    f"               The split is the waterline: everything reaching below it\n"
                    f"               takes slamming and beaching loads.")
+        preset = ("boatASA-12 for the 12% chunks, boatASA-8 for the rest"
+                  if low and len(low) != len(rows) else
+                  ("boatASA-12" if low else "boatASA-8"))
         write_profile(out, name, TITLES.get(name, name.upper()), f"#{seq0:03d}",
-                      f"#{hi:03d}", len(rows), dw, kg, inf, EXTRA.get(name, ""))
+                      f"#{hi:03d}", len(rows), dw, kg, inf, EXTRA.get(name, ""),
+                      preset=preset)
     make_dowel(out)
     with open(out / "manifest.csv", "w", newline="") as f:
         w = csv.writer(f)

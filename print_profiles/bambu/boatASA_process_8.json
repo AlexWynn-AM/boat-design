@@ -1,0 +1,27 @@
+{
+    "bottom_shell_layers": "3",
+    "brim_object_gap": "0",
+    "brim_type": "outer_only",
+    "brim_width": "8",
+    "from": "User",
+    "infill_wall_overlap": "25%",
+    "inherits": "0.24mm Draft @BBL X1C",
+    "name": "boatASA-8",
+    "print_extruder_id": [
+        "1",
+        "1"
+    ],
+    "print_extruder_variant": [
+        "Direct Drive Standard",
+        "Direct Drive High Flow"
+    ],
+    "print_settings_id": "boatASA-8",
+    "skeleton_infill_density": "8%",
+    "skin_infill_density": "8%",
+    "sparse_infill_density": "8%",
+    "sparse_infill_pattern": "gyroid",
+    "top_shell_layers": "3",
+    "top_shell_thickness": "0",
+    "version": "2.6.0.5",
+    "wall_loops": "1"
+}
