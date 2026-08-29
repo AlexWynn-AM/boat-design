@@ -104,11 +104,28 @@ PERIM_SHELL = 0.5       # mm SOLID perimeter per face = 1 perimeter (set to YOUR
                         # width). The print is a glass core/mold, so 1 clean shell is enough.
 INFILL = 0.12           # infill density beyond the perimeter (use GYROID -- isotropic + best shear
                         # as a sandwich core; grid is weaker/anisotropic in shear)
-# Fiberglass schedule by ZONE (laminated areal mass incl. resin, kg/m^2):
-GLASS_BOTTOM  = 1.2     # exterior bottom: 1708 biax (~1.2) -- tough, for beaching
-GLASS_TOPSIDE = 0.4     # exterior topsides: 6 oz (1708 stays on the bottom); 1.2 to match bottom
-GLASS_DECK    = 0.27    # decks/gunwale tops: 4 oz (core gives the stiffness; carbon not needed)
-GLASS_INSIDE  = 0.4     # interior (cockpit only): 6 oz (~0.4; 0.27 for 4 oz)
+# Fiberglass schedule by ZONE (laminated areal mass incl. resin, kg/m^2).
+# Rev-3.4: ONE FABRIC -- 6 oz plain weave everywhere, doubled on the bottom (2nd layer at
+# 45 deg to the first). Was 1708 biax on the bottom + 4 oz on the deck.
+#   6 oz  = 203 g/m^2 dry, ~50% fibre wet  -> 0.40 kg/m^2 laminated
+# WHY NOT 1708: its 0.75 oz mat is a POLYESTER feature -- it exists to make secondary
+# bonds to cured polyester, and its binder is styrene-soluble, so in EPOXY it neither
+# breaks down nor carries load (random chopped fibre at ~27% fibre fraction, on a skin
+# whose job is impact, not bending -- the 7 mm printed core does the bending). It is only
+# ~0.09 of the old 1.2, so dropping it was never about weight. The no-mat equivalent is
+# 1700 / DB170 biax; 2 x 6 oz was chosen over it for buildability: one fabric to buy, far
+# easier wet-out, and it drapes over the bow flare and the printed layer lines properly.
+# TRADE: 2 x 6 oz is 406 g/m^2 of fibre vs 576 for 1700, and ~0.5 mm of laminate vs ~0.85.
+# That is the abrasion/puncture margin, so a beaching boat wants the keel + chine strip
+# noted below rather than a thicker skin everywhere.
+GLASS_BOTTOM  = 0.8     # exterior bottom: 2 x 6 oz (2nd at 45 deg) -- 0.4 for one layer
+GLASS_TOPSIDE = 0.4     # exterior topsides: 6 oz
+GLASS_DECK    = 0.4     # decks/gunwale tops: 6 oz (was 4 oz; core gives the stiffness)
+GLASS_INSIDE  = 0.4     # interior (cockpit only): 6 oz
+# BUILD NOTE: beaching abrasion is a LOCAL problem -- add a 3rd 6 oz strip (or graphite/
+# epoxy) along the keel and the chines, where the boat actually drags, rather than paying
+# for a heavier bottom skin over the whole 2.7 m^2. Not modelled here (local, ~0.2 kg).
+# If you ever switch to polyester/vinylester, put the mat back: there it earns its place.
 GLASS_INTERIOR_OF = {"center": True, "bow": False,           # cockpit glassed; bow storage bare
                      "wedge_stbd": False, "wedge_port": False}  # wedges are sealed pods
 
@@ -234,13 +251,33 @@ WEDGE_CAV_INSET = 1.5             # design in: leave this much solid at the fore
 # Only keep solid LOCAL bosses around each dovetail key + bolt; thin SKIN wall elsewhere.
 WEDGE_BOSS_MARGIN = 1.6           # design in: solid kept off the mating wall AT a key/bolt
 WEDGE_BOSS_HALF = 3.5             # design in: half-length of each boss along x
+# Rev-3.4: the boss used to be a flat on/off -- full margin anywhere near a key, over the
+# WHOLE section height. But a key only spans from a foot above the waterline to the rim,
+# so each boss ran keel-to-sheer and ~43% of it backed nothing: 374 in^3 real per wedge.
+# It now fades out below the key and past the key's ends, which also kills the two steps
+# (both stress risers, and both visible on the inside of a printed pod).
+WEDGE_BOSS_SKIRT = 2.0            # design in: fade the boss out over this much z BELOW the
+                                  # key's own bottom (a chamfered root, not a shelf)
+WEDGE_BOSS_FADE = 1.5             # design in: and over this much x past WEDGE_BOSS_HALF
 
 # Wedge-top trim (REAL inches): lop this much off the top of the wedges (flat cap)
 # so the rotated wedges sit lower when nested -> smaller total bundle height for the
 # car. Only the WEDGE is shortened; the center keeps full height. 0 = untrimmed.
 # Assembled, this steps the outboard aft gunwale down by WEDGE_TOP_TRIM.
 WEDGE_TOP_TRIM = 0.0
-WATERLINE = 7.0     # real inches above the keel; the dovetail must stay above this
+# --- Design load -> waterline (rev-3.3) -----------------------------------------
+# WATERLINE used to be a magic 7.0 with nothing behind it. It is now DERIVED: the hull's
+# own hydrostatics are solved for the waterplane at DESIGN_LOAD_LB all-up, so every
+# "must stay above the waterline" rule in this file (bolts, dovetails, the bulkhead sill)
+# is tied to a stated weight instead of a guess. See report_hydrostatics().
+DESIGN_LOAD_LB = 600.0      # all-up: structure + motor + battery + fuel + crew + gear.
+                            # The printed+glassed structure is ~66 lb, so this is ~535 lb
+                            # of everything else -- roughly 3 adults with a small outboard.
+WATER_LB_PER_IN3 = 0.0361   # fresh water (salt is ~0.0370 -> very slightly less draft)
+WATERLINE = 7.0     # real inches above the keel datum at the split. OVERWRITTEN by
+                    # set_waterline_from_load() at the top of main(); the literal is only
+                    # the fallback for importers that never call main(). At DESIGN_LOAD_LB
+                    # = 600 lb it solves to ~7.0", which is where the old guess landed.
 
 # --- Vertical drop-in dovetail KEYS (replace the fore-aft sliding dovetail) ---
 # With USE_VKEYS the mating wall is a PLAIN flat plane; N_KEYS dovetail keys per side
@@ -255,6 +292,15 @@ KEY_DEPTH = 0.7             # tongue reach inboard past the wall (design in)
 KEY_MOUTH = 2.0             # fore-aft width of the key at the wall face (design in)
 KEY_BACK = 3.0             # fore-aft width at the flared back (>MOUTH => dovetail)
 KEY_STUB = 0.5             # tongue stub reach outboard into the wedge body (design in)
+# Fit clearance. Rev-3.4: the socket used to be cut with the SAME prism that was unioned
+# on as the tongue, i.e. a zero-clearance interference fit -- correct on paper, unbuildable
+# in practice. The socket cutter is now grown KEY_CLR on every face (and its floor dropped
+# the same amount) so the tongue drops in with a gap all round; the same value is used on
+# the bow<->center keys. Given in REAL mm because it is a printing/fit allowance, not a
+# hull dimension -- so note it does NOT shrink with --scale: a 1:10 model wants roughly
+# 10x KEY_CLR_MM to fit like the real boat (see --key-clearance-mm).
+KEY_CLR_MM = 0.6            # real mm of gap per mating face
+KEY_CLR = (KEY_CLR_MM / 25.4) / DESIGN_SCALE     # -> design inches
 
 NS = 30             # center outer-skin points (keel -> crossing)
 NW = 30             # shared mating-wall contour points (center groove == wedge tongue)
@@ -269,8 +315,20 @@ NTOT_I = 74         # constant center inner-half vertex count
 BOLT_R = 0.22            # design-in hole radius (~0.2" real bolt clearance)
 BOLT_WEDGE_X = list(KEY_X)  # a column of bolts per dovetail key, to pin it from lifting
 BOLT_WEDGE_BELOW = [2.5, 7.5]  # z-offsets below sheer: 2 bolts per key -> 2x3x2 = 12
-BOLT_WEDGE_IN = 2.5      # cylinder reach inboard of the mating plane (into center)
-BOLT_WEDGE_OUT = 2.5     # cylinder reach outboard of the mating plane (into wedge)
+BOLT_WEDGE_IN = 2.5      # cylinder reach inboard of the mating plane -> straight through
+                         # the center's wall into the cockpit, where the head/washer bears
+# The wedge end is BLIND. A wedge is a SEALED buoyancy pod: there is no way to reach inside
+# it to put a nut on, so the bolt has to thread into the wedge itself (heat-set or epoxied
+# insert in the boss -- BOLT_R is a ~10 mm hole, sized for one).
+# Rev-3.4: this used to be a flat 2.5" like the inboard reach, but the wedge only carries
+# WEDGE_BOSS_MARGIN of solid behind the mating wall, so every one of the 12 holes ran out
+# the back of its boss and into the sealed void -- 0.14 in^3 of daylight apiece. That is
+# invisible to every other check in this file, because a tunnel into an internal void
+# leaves a perfectly watertight manifold, and it costs BOTH things the pod is for: it
+# floods, and the bolt has nothing to land on. Now derived from the boss so it can never
+# outrun it again, and check_pods_sealed() asserts it every run.
+BOLT_WEDGE_BACK = 0.35   # design in: solid kept BEHIND the blind hole's bottom
+BOLT_WEDGE_OUT = WEDGE_BOSS_MARGIN - BOLT_WEDGE_BACK   # reach outboard, into the wedge boss
 # Bow<->center bolts. With the vertical drop-in keys (BOW_KEYS) carrying the fore-aft
 # lock, these are ANTI-LIFT ONLY -- like the wedge bolts -- so two heights per side is
 # enough. Given as REAL inches (13" and 19" above the keel) -> design units.
@@ -324,8 +382,62 @@ BKEY_SIDE_MOUTH = 0.42
 BKEY_SIDE_BACK = 0.62
 BKEY_SIDE_EDGE = 0.15  # keep the key's outboard edge this far inside the flange's outer face
 
-# Transom: a solid slab closing the center's stern (the cockpit is otherwise open aft).
-TRANSOM_THICK = 1.5 / DESIGN_SCALE   # 1.5" REAL thick (solid enough for an outboard clamp)
+# --- Solid BULKHEAD across the bottom of the bow/center joint (rev-3.3) ---------
+# The flange ring alone leaves the bottom of the x=BOW_SPLIT seam as a thin butt joint:
+# the only solid thing closing it low down was the centreline key's little boss standing
+# on the sole, topping out ~5" above the keel -- i.e. UNDER the 7" waterline, and further
+# under it once the boat is loaded. So the bottom of the joint is now a FULL solid web --
+# a real bulkhead -- on each piece, from the keel up to BHD_TOP. Above BHD_TOP the joint
+# reverts to the flange ring.
+#   CENTER -> x = [BOW_SPLIT-BHD_T, BOW_SPLIT], unioned on: a BHD_TOP-high bulkhead
+#             standing at the forward end of the cockpit.
+#   BOW    -> x = [BOW_SPLIT, BOW_SPLIT+BHD_T], produced by CUTTING the region out of
+#             build_bow_cavity rather than unioning a solid on, so no new face lands
+#             coplanar with the x=BOW_SPLIT mating plane (same reasoning as bow_wall_at).
+#             The bow's storage opening therefore gains a BHD_TOP sill.
+BULKHEAD = True
+BHD_TOP = 12.0                 # REAL inches above the keel: top of the solid web
+                               # (waterline is 7", lowest bow bolt is at 13")
+BHD_T = 1.0 / DESIGN_SCALE     # REAL 1.0" axial thickness EACH side -> 2.0" assembled.
+                               # Deliberately != FLANGE_T so no bulkhead face can land
+                               # coplanar with a flange face.
+BHD_DIP = 4.0                  # REAL inches the top of the web DIPS at the centreline:
+                               # the sill is an arch, BHD_TOP at the skin falling to
+                               # BHD_TOP-BHD_DIP on the centreline (raised cosine over the
+                               # web's full half-width). Softens the flat top edge and
+                               # opens the storage hatch 4" taller in the middle, where a
+                               # bag actually goes through. 0 = flat top.
+BKEY_TOP_GAP = 0.2             # design in: hold every key tongue this far BELOW the LOCAL
+                               # bulkhead top, so no tongue cap is coplanar with it (and
+                               # no tongue stands proud of the arched sill).
+
+# Transom: a slab closing the center's stern (the cockpit is otherwise open aft), plus a
+# MOULDED CLAMP PAD standing proud of its inner face where the outboard actually grips.
+#
+# Rev-3.4. It used to be a flat 1.5" slab everywhere: 1175 in^3, 32% of the center's entire
+# material volume, to serve a motor that only ever touches the ~20" either side of the
+# notch. So the slab is thinned to a structural closure and the thickness is put back as a
+# local pad that smoothsteps away in both y and z -- printed, a moulded lens costs nothing
+# a flat slab doesn't.
+#
+# The pad is UNIONED as its own solid rather than written into the slab's forward face,
+# and that is not a style choice: build_transom caps that face with ear_clip over the
+# section OUTLINE, so an x carried on the outline is exact only ON the boundary and is
+# linearly interpolated across the interior. A y-varying thickness written that way reads
+# 1.5" at the keel vertex and 0.73" in the middle of the pad -- i.e. it thins out exactly
+# where the clamp bears. Measured, before this was caught.
+TRANSOM_THICK = 0.65 / DESIGN_SCALE      # REAL base slab: closes the stern, glassed both
+                                         # faces; ~2x the cockpit sole, no motor load
+TRANSOM_PAD_THICK = 1.5 / DESIGN_SCALE   # REAL total thickness at the clamp pad
+TRANSOM_PAD = 10.0 / DESIGN_SCALE        # REAL half-width held at FULL pad thickness. The
+                                         # notch is 16" wide at its top, so this is the
+                                         # notch + 2" of grip a side: screws land on 1.5".
+TRANSOM_BLEND = 8.0 / DESIGN_SCALE       # REAL half-width of the smoothstep out to the slab
+TRANSOM_PAD_DROP = 9.0 / DESIGN_SCALE    # REAL: pad runs full this far BELOW the notch ledge
+TRANSOM_PAD_FADE = 5.0 / DESIGN_SCALE    # REAL: and fades out over this much more
+TRANSOM_PAD_BURY = 0.1                   # design in: the pad's faded edge sits this far
+                                         # INSIDE the slab, so no face lands coplanar with
+                                         # the slab's own forward face (see bow_wall_at)
 # Outboard motor cutout: notch the transom center down to NOTCH_TOP (REAL inches above
 # the hull bottom at the transom) = the motor mount height. 15" short shaft -> ~17".
 MOTOR_NOTCH = True
@@ -352,6 +464,197 @@ def resample(poly, n):
     ys = np.interp(t, cum, pts[:, 0])
     zs = np.interp(t, cum, pts[:, 1])
     return list(zip(ys.tolist(), zs.tolist()))
+
+
+def _smoothstep(t):
+    """C1 ramp: 0 below t=0, 1 above t=1, flat-tangent at both ends."""
+    t = min(1.0, max(0.0, t))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def _signed_area(poly):
+    """2x-free signed area of a closed (y,z) polygon: >0 CCW, <0 CW."""
+    P = np.asarray(poly, float)
+    Q = np.roll(P, -1, axis=0)
+    return 0.5 * float(np.sum(P[:, 0] * Q[:, 1] - Q[:, 0] * P[:, 1]))
+
+
+def offset_poly(poly, d, miter=3.0):
+    """TRUE offset of a closed (y,z) contour: every vertex slides along its own miter
+    bisector so each EDGE ends up exactly d from where it started, measured along that
+    edge's own normal. d > 0 offsets INWARD, d < 0 outward. The vertex count is
+    preserved, so the result still lofts as a quad strip against its input.
+
+    Rev-3.4. This replaces the old shrink-toward-the-centroid trick (see inset_contour).
+    A radial shrink only leaves a wall of d where the centroid ray happens to hit the
+    skin square; on a panel the ray grazes -- the wedge's outer skin, the bow's flat
+    foredeck -- the wall collapses to d*cos(theta). Measured on rev-3.2 that put ~1-4 mm
+    of material where 7 mm was asked for (0.02 mm at the wedge's forward end), which is
+    why the 1:10 test print came out with the wedge skins and the bow deck missing: at
+    print scale those walls were a fraction of one extrusion width and the slicer simply
+    dropped them."""
+    P = np.asarray(poly, float)
+    n = len(P)
+    sgn = 1.0 if _signed_area(P) > 0 else -1.0    # CCW -> interior is left of each edge
+    E = np.roll(P, -1, axis=0) - P                # edge i runs P[i] -> P[i+1]
+    L = np.linalg.norm(E, axis=1)
+    good = L > 1e-12
+    N = np.zeros_like(E)
+    N[good] = sgn * np.column_stack([-E[good, 1], E[good, 0]]) / L[good, None]
+    for i in range(n):                            # zero-length edges inherit a normal
+        if not good[i]:
+            N[i] = N[i - 1]
+    Nprev = np.roll(N, 1, axis=0)                 # edges (i-1) and i meet at vertex i
+    c = np.clip(np.sum(Nprev * N, axis=1), -1.0, 1.0)
+    B = Nprev + N
+    bl = np.linalg.norm(B, axis=1)
+    U = np.where(bl[:, None] > 1e-9, B / np.maximum(bl, 1e-9)[:, None], N)
+    # |t| = d / cos(half the turn) -> the bisector reach that puts BOTH edges d away
+    t = np.where(bl > 1e-9, d / np.sqrt(np.maximum(0.5 * (1.0 + c), 1e-9)), d)
+    t = np.clip(t, -abs(miter * d), abs(miter * d))   # miter limit at spikes
+    return [tuple(q) for q in (P + U * t[:, None])]
+
+
+def _points_inside(pts, poly):
+    """Even-odd ray test: per-point True if it lies inside the closed polygon."""
+    P = np.asarray(poly, float)
+    A, B = P, np.roll(P, -1, axis=0)
+    Q = np.asarray(pts, float)
+    y, z = Q[:, 0][:, None], Q[:, 1][:, None]
+    y0, z0 = A[None, :, 0], A[None, :, 1]
+    y1, z1 = B[None, :, 0], B[None, :, 1]
+    straddle = (z0 > z) != (z1 > z)
+    dz = np.where(np.abs(z1 - z0) < 1e-15, 1e-15, z1 - z0)
+    yx = y0 + (z - z0) * (y1 - y0) / dz
+    return (np.sum(straddle & (y < yx), axis=1) % 2) == 1
+
+
+def _crossing_mask(poly):
+    """Per-vertex True for every vertex of an edge that crosses a non-adjacent edge."""
+    P = np.asarray(poly, float)
+    n = len(P)
+    A = P
+    R = np.roll(P, -1, axis=0) - P
+    p, r = A[:, None, :], R[:, None, :]
+    q, sv = A[None, :, :], R[None, :, :]
+    rxs = r[..., 0] * sv[..., 1] - r[..., 1] * sv[..., 0]
+    qp = q - p
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = (qp[..., 0] * sv[..., 1] - qp[..., 1] * sv[..., 0]) / rxs
+        u = (qp[..., 0] * r[..., 1] - qp[..., 1] * r[..., 0]) / rxs
+    hit = ((np.abs(rxs) > 1e-12) & (t > 1e-9) & (t < 1 - 1e-9)
+           & (u > 1e-9) & (u < 1 - 1e-9))
+    i = np.arange(n)
+    gap = np.abs(i[:, None] - i[None, :])
+    hit &= ~((gap <= 1) | (gap == n - 1))
+    e = hit.any(axis=1) | hit.any(axis=0)         # edge i is involved in a crossing
+    return e | np.roll(e, 1)                      # ...so flag both of its endpoints
+
+
+def _self_intersects(poly):
+    """True if any two non-adjacent edges of the closed polygon cross."""
+    return bool(_crossing_mask(poly).any())
+
+
+def _dist_to_poly(pts, poly):
+    """Per-point distance from each of pts to the closed polyline `poly`."""
+    P = np.asarray(poly, float)
+    A, B = P, np.roll(P, -1, axis=0)
+    AB = B - A
+    den = np.maximum(np.sum(AB * AB, axis=1), 1e-12)
+    Q = np.asarray(pts, float)
+    t = np.clip(np.sum((Q[:, None, :] - A[None, :, :]) * AB[None, :, :], axis=2)
+                / den[None, :], 0.0, 1.0)
+    proj = A[None, :, :] + t[:, :, None] * AB[None, :, :]
+    return np.linalg.norm(Q[:, None, :] - proj, axis=2).min(axis=1)
+
+
+def _bridge_runs(O, bad):
+    """Replace each circular run of flagged vertices by a straight chord between the two
+    sound vertices bracketing it. The run's own shape is thrown away -- that is the
+    point: the cavity stops short of the pinch and the pinch stays solid."""
+    n = len(O)
+    if bad.all():
+        return O
+    O = O.copy()
+    start = int(np.argmin(bad))                   # scan from a vertex we know is sound
+    order = [(start + k) % n for k in range(n)]
+    k = 0
+    while k < n:
+        if not bad[order[k]]:
+            k += 1
+            continue
+        j = k
+        while j < n and bad[order[j]]:
+            j += 1
+        a, b = O[order[k - 1]], O[order[j % n]]   # order[0] is sound, so k >= 1 here
+        m = j - k
+        for t in range(m):
+            O[order[k + t]] = a + (b - a) * ((t + 1) / (m + 1.0))
+        k = j
+    return O
+
+
+def repair_inset(O, poly, d, tol=0.5, passes=14):
+    """Make a raw offset usable: flag every vertex that folded outside `poly` or ended up
+    closer than tol*d to it, bridge those runs, repeat until clean.
+
+    offset_poly is exact but it folds wherever the section pinches to less than 2d
+    across -- the wedge's bottom corner where the outer skin runs into the mating plane,
+    the bow's deck-edge corner under the wide flange inset. Those folds are always LOCAL,
+    so throwing the whole station away (and leaving the piece solid there) would be far
+    worse than bridging them. Returns a list of the same length, or None if the section
+    is genuinely too thin to hollow. tol also acts as the minimum-wall rule: anything
+    that would come out thinner than tol*d is left solid instead.
+
+    The flag set is STICKY and every pass re-bridges the RAW offset through it. Bridging
+    in place instead let the region oscillate -- a chord's own endpoints become the next
+    pass's crossings, the runs shuffle one vertex along, and the loop never settles (the
+    center's flange contour did exactly that, so the ring silently failed to build). A
+    monotone mask, dilated whenever a pass adds nothing new, always terminates."""
+    O0 = np.asarray(O, float)
+    n = len(O0)
+    O = O0.copy()
+    acc = np.zeros(n, bool)
+    for _ in range(passes):
+        sd = _dist_to_poly(O, poly) * np.where(_points_inside(O, poly), 1.0, -1.0)
+        # too thin / folded outside, OR caught up in a miter spike that crosses itself
+        bad = (sd < tol * d) | _crossing_mask(O)
+        if not bad.any():
+            break
+        new = acc | bad
+        if (new == acc).all():                    # stuck: widen the bridges by a vertex
+            new = new | np.roll(new, 1) | np.roll(new, -1)
+        if new.sum() > 0.75 * n:
+            return None
+        acc = new
+        O = _bridge_runs(O0, acc)
+    else:
+        return None
+    out = [tuple(q) for q in O]
+    return out if offset_ok(out, poly, d) else None
+
+
+def offset_inward(poly, d, tol=0.5):
+    """True inward offset of a closed (y,z) contour by d, pinch-repaired. Same vertex
+    count as `poly` (so it lofts as a quad strip against it). None if too thin."""
+    return repair_inset(offset_poly(poly, d), poly, d, tol)
+
+
+def offset_ok(inner, outer, d):
+    """Is `inner` a usable inward offset of `outer` by d? Every vertex has to land inside
+    `outer` and the result has to stay a simple loop -- that is what catches the two ways
+    an offset goes bad on these sections: a miter that overshoots back out through the
+    skin, and a neck narrower than 2d where the two walls' offsets pass through each
+    other. A False here means "this station is too thin to hollow", not a bug."""
+    if len(inner) != len(outer) or d <= 0:
+        return False
+    ai, ao = _signed_area(inner), _signed_area(outer)
+    if ai * ao <= 0 or abs(ai) >= abs(ao):
+        return False
+    if not _points_inside(np.asarray(inner, float), outer).all():
+        return False
+    return not _self_intersects(inner)
 
 
 def cross_z(poly, yc):
@@ -428,7 +731,7 @@ def dovetail_params(hull, x, zc):
     if WEDGE_TOP_TRIM > 0:                       # keep the pocket below the wedge cut
         z_cut = hull.interp(BOW_SPLIT)[3] - WEDGE_TOP_TRIM / DESIGN_SCALE
         z_mt = min(z_mt, z_cut - under - 0.5)
-    wl = kz + WATERLINE / DESIGN_SCALE           # keep the pocket above the waterline
+    wl = waterline_z(hull)                       # keep the pocket above the waterline
     z_mb = max(z_mt - mouth, zc + 0.3, wl)
     if z_mt - z_mb < 0.2:
         return None
@@ -851,6 +1154,19 @@ def build_wedge(hull, side=+1):
     return loft(np.array(xs), sections)
 
 
+def wedge_boss_margin(hull, x, z):
+    """Solid kept off the mating wall at (x, z) inside a wedge: WEDGE_BOSS_MARGIN over the
+    band a dovetail key actually occupies, SKIN everywhere else, smoothstepped between.
+    The key's own bottom is waterline+1 (see _key_prism), and the bolts through it sit
+    BOLT_WEDGE_BELOW under the sheer -- both well inside the full-margin band."""
+    if not KEY_X:
+        return SKIN
+    fz = _smoothstep((z - (waterline_z(hull) + 1.0 - WEDGE_BOSS_SKIRT)) / WEDGE_BOSS_SKIRT)
+    dx = min(abs(x - kx) for kx in KEY_X)
+    fx = 1.0 - _smoothstep((dx - WEDGE_BOSS_HALF) / WEDGE_BOSS_FADE)
+    return SKIN + (WEDGE_BOSS_MARGIN - SKIN) * fz * fx
+
+
 def build_wedge_cavity(hull, side=+1):
     """Closed inset solid for hollowing a wedge into a SEALED shell: each section is the
     wedge_section shrunk SKIN toward its centroid, then its inboard edge pulled out to
@@ -862,30 +1178,33 @@ def build_wedge_cavity(hull, side=+1):
             continue
         sec = wedge_section(hull, x)
         if sec is None:
-            continue
+            break
         yc = ycut(x)
-        cy = sum(p[0] for p in sec) / len(sec)
-        cz = sum(p[1] for p in sec) / len(sec)
-        inset = []
-        for (y, z) in sec:
-            ddy, ddz = cy - y, cz - z
-            d = (ddy * ddy + ddz * ddz) ** 0.5
-            if d > 1e-6:
-                y, z = y + ddy / d * SKIN, z + ddz / d * SKIN
-            # thin SKIN wall on the mating side, except a local boss at each key/bolt station
-            near_key = any(abs(x - kx) < WEDGE_BOSS_HALF for kx in KEY_X)
-            margin = WEDGE_BOSS_MARGIN if near_key else SKIN
-            inset.append((max(y, yc + margin), z))
+        # thin SKIN wall on the mating side, except a local boss at each key/bolt station
+        inset = [(max(y, yc + wedge_boss_margin(hull, x, z)), z)   # TRUE SKIN wall all round
+                 for (y, z) in offset_poly(sec, SKIN)]
+        inset = repair_inset(inset, sec, SKIN)             # bridge the bottom-corner pinch
+        if inset is None:
+            break                                          # forward end: too thin to hollow
         ys = [p[0] for p in inset]
         zsv = [p[1] for p in inset]
         if (max(ys) - min(ys)) < 1.2 or (max(zsv) - min(zsv)) < 1.2:
-            continue                                       # too thin -> leave solid here
+            break                                          # too thin -> solid from here on
         if side < 0:
             inset = [(-y, z) for (y, z) in inset]
         xs.append(x)
         sections.append(inset)
     if len(xs) < 3:
         return None
+    # Taper the forward end shut instead of stopping on a butt face. The old loop
+    # `continue`d past thin stations and then lofted straight across the gap, which put
+    # cavity where the wedge is a sliver; breaking + tapering leaves that tip solid.
+    last = sections[-1]
+    lcy = sum(p[0] for p in last) / len(last)
+    lcz = sum(p[1] for p in last) / len(last)
+    for f, dx in ((0.45, 0.5), (0.12, 1.0)):
+        xs.append(xs[-1] + dx)
+        sections.append([(lcy + (y - lcy) * f, lcz + (z - lcz) * f) for (y, z) in last])
     return to_trimesh(loft(np.array(xs), sections))
 
 
@@ -971,8 +1290,8 @@ def bow_wall_at(hull, x):
     the STL round-trips through float32, collapse into non-manifold edges; make_manifold
     then had to call pymeshfix, and pymeshfix bridged the thin nose shell and the storage
     opening with the big flat membranes seen on the foredeck. Building the ring INTO the
-    cavity produces the identical solid (the ring's inner boundary IS this inset, taken
-    off the same contour about the same centroid) with no boolean and no coplanar faces,
+    cavity produces the identical solid (the ring's inner boundary IS this inset, the same
+    offset taken off the same contour) with no boolean and no coplanar faces,
     so the repair pass has nothing left to patch."""
     if IFACE_FLANGE and BOW_SPLIT - EPS <= x <= BOW_SPLIT + FLANGE_T + EPS:
         return FLANGE_GAP + FLANGE_W
@@ -982,7 +1301,7 @@ def bow_wall_at(hull, x):
 def build_bow_cavity(hull):
     """Solid for hollowing the bow into a uniform ~BOW_WALL shell that follows the FULL
     hull section -- so the V-bottom FLOOR gets hollowed too, not left solid. Each
-    bow_section is inset bow_wall_at(x) toward its centroid (that inset carries the
+    bow_section is offset inward by bow_wall_at(x) (that inset carries the
     interface flange ring, see bow_wall_at); lofted from ~1" AFT of the split (subtracting
     it opens the aft face for storage access) forward until the nose gets too thin to
     hollow, then tapered shut. Closed solid for the boolean."""
@@ -1003,18 +1322,9 @@ def build_bow_cavity(hull):
     for x in xs_scan:
         wall = bow_wall_at(hull, x)
         sec = bow_section(hull, x)
-        cy = sum(p[0] for p in sec) / len(sec)
-        cz = sum(p[1] for p in sec) / len(sec)
-        inset, ok = [], True
-        for (y, z) in sec:
-            ddy, ddz = cy - y, cz - z
-            d = (ddy * ddy + ddz * ddz) ** 0.5
-            if d <= wall + 0.1:                           # closer to centroid than the wall -> too thin
-                ok = False
-                break
-            inset.append((y + ddy / d * wall, z + ddz / d * wall))
-        if not ok:
-            break
+        inset = offset_inward(sec, wall)                  # TRUE wall, incl. under the deck
+        if inset is None:
+            break                                          # section too thin to hollow
         ys = [p[0] for p in inset]
         zsv = [p[1] for p in inset]
         if (max(ys) - min(ys)) < 1.5 or (max(zsv) - min(zsv)) < 1.5:
@@ -1031,7 +1341,16 @@ def build_bow_cavity(hull):
     for f, dx in ((0.45, 1.2), (0.12, 2.4)):
         xs.append(xs[-1] + dx)
         sections.append([(lcy + (y - lcy) * f, lcz + (z - lcz) * f) for (y, z) in last])
-    return to_trimesh(loft(np.array(xs), sections))
+    cav = to_trimesh(loft(np.array(xs), sections))
+    if BULKHEAD:
+        # Take the low part of the joint back OUT of the cavity -> the bow keeps solid
+        # material there = its half of the bulkhead, and the storage opening gets a
+        # BHD_TOP sill. The cutter starts well AFT of the cavity's own aft end
+        # (BOW_SPLIT-1.2) so the difference leaves no face at x=BOW_SPLIT.
+        import trimesh
+        cav = cav.difference(bulkhead_cutter(hull, BOW_SPLIT - 2.5, BOW_SPLIT + BHD_T))
+        trimesh.repair.fix_normals(cav)
+    return cav
 
 
 # ------------------------------------------------------------------
@@ -1053,20 +1372,11 @@ def iface_contour(hull, x, piece):
 
 
 def inset_contour(poly, d):
-    """Shrink a closed (y,z) contour by moving every vertex distance d toward the
-    contour's centroid. Same vertex count (so the ring lofts as a quad strip) and, for
-    these fat hull sections, guaranteed to stay inside and simple -- verified by the
-    area check below. Returns None if d is too big for this section."""
-    cy = sum(p[0] for p in poly) / len(poly)
-    cz = sum(p[1] for p in poly) / len(poly)
-    out = []
-    for (y, z) in poly:
-        dy, dz = cy - y, cz - z
-        r = (dy * dy + dz * dz) ** 0.5
-        if r <= d + 0.05:                             # vertex closer to centre than d
-            return None
-        out.append((y + dy / r * d, z + dz / r * d))
-    return out
+    """Shrink a closed (y,z) contour by a TRUE d -- perpendicular to the local edge, not
+    toward the centroid (rev-3.4; see offset_poly for why the centroid version was wrong).
+    Same vertex count, so the ring still lofts as a quad strip against `poly`. Returns
+    None if d is too big for this section."""
+    return offset_inward(poly, d)
 
 
 def _poly_area(poly):
@@ -1189,6 +1499,114 @@ def build_iface_flange(hull, piece):
 
 
 # ------------------------------------------------------------------
+# BOTTOM BULKHEAD  (solid web closing the low part of the bow/center joint)
+# ------------------------------------------------------------------
+def bhd_z_top(hull):
+    """Design z of the bulkhead's top edge AT THE SKIN = BHD_TOP real inches above the
+    keel at the split. This is the high point of the arch; bhd_top_at() gives the local
+    height anywhere across the beam. Solid web below, flange ring above."""
+    return hull.interp(BOW_SPLIT)[5] + BHD_TOP / DESIGN_SCALE
+
+
+def _bhd_profile(hull):
+    """(z_top, y_edge): the arch's high point and the stbd half-width of the web there.
+    Cached -- it costs an iface_contour + inset_contour and is asked for per vertex."""
+    c = _bhd_profile._cache.get(id(hull))
+    if c is None:
+        o = inset_contour(iface_contour(hull, BOW_SPLIT, "center"), FLANGE_GAP)
+        zt = bhd_z_top(hull)
+        c = (zt, _contour_hw(o, zt) if o is not None else 0.0)
+        _bhd_profile._cache[id(hull)] = c
+    return c
+
+
+_bhd_profile._cache = {}
+
+
+def bhd_top_at(hull, y):
+    """Design z of the bulkhead's top edge at beam y -- the arched sill. A raised cosine
+    over the web's full half-width: BHD_TOP at the skin, falling BHD_DIP at y=0, and
+    flat (zero slope) at both ends so it fairs into the hull with no corner."""
+    zt, yw = _bhd_profile(hull)
+    if BHD_DIP <= 0.0 or yw <= 0.0:
+        return zt
+    u = min(1.0, abs(y) / yw)
+    return zt - (BHD_DIP / DESIGN_SCALE) * 0.5 * (1.0 + np.cos(np.pi * u))
+
+
+def bhd_top_curve(hull, n=120):
+    """The arched sill sampled across the beam, as (ys, zs) -- for the renders."""
+    _, yw = _bhd_profile(hull)
+    ys = np.linspace(-yw, yw, n)
+    return ys, np.array([bhd_top_at(hull, y) for y in ys])
+
+
+def clip_below_curve(poly, f, n=64):
+    """Clip a closed (y,z) contour to the region z <= f(y), where f is a gentle
+    single-valued curve of y. Sutherland-Hodgman first (the hull section crosses the
+    sill exactly twice, so the result is one simple polygon closed by a straight chord),
+    then that chord is replaced by n samples of f itself -- so the cut edge IS the arch,
+    not a secant of it. The two chord endpoints are excluded from the resampling, so no
+    duplicate/collinear vertex reaches ear_clip."""
+    g = lambda y, z: z - f(y)
+    out, cross = [], []
+    m = len(poly)
+    for i in range(m):
+        y0, z0 = poly[i]
+        y1, z1 = poly[(i + 1) % m]
+        g0, g1 = g(y0, z0), g(y1, z1)
+        if g0 <= 0.0:
+            out.append((y0, z0))
+        if (g0 <= 0.0) != (g1 <= 0.0):
+            t = g0 / (g0 - g1)
+            yc = y0 + t * (y1 - y0)
+            out.append((yc, f(yc)))
+            cross.append(len(out) - 1)
+    if len(out) < 3 or len(cross) != 2:
+        return None
+    k = len(out)
+    ci = next((i for i in cross if (i + 1) % k in cross), None)
+    if ci is None:
+        return None
+    ya, yb = out[ci][0], out[(ci + 1) % k][0]
+    arc = [(y, f(y)) for y in np.linspace(ya, yb, n + 2)[1:-1]]
+    return out[:ci + 1] + arc + out[ci + 1:]
+
+
+def build_bulkhead_center(hull):
+    """The CENTER's half of the bulkhead: the center's own outer section at x=BOW_SPLIT
+    (pulled FLANGE_GAP inside the skin so the union always overlaps solid shell and
+    nothing protrudes past the hull) clipped to z <= bhd_z_top and extruded aft over
+    x = [BOW_SPLIT-BHD_T, BOW_SPLIT]. Taken at BOW_SPLIT because the hull only WIDENS
+    going aft, so the prism stays inside the shell over its whole span. Ear-clip capped
+    (the section is non-convex -- the spray rail bulges out below the clip height), so a
+    triangle fan would self-overlap. Returns None if the section is too small."""
+    base = iface_contour(hull, BOW_SPLIT, "center")
+    o = inset_contour(base, FLANGE_GAP)
+    if o is None:
+        return None
+    poly = clip_below_curve(o, lambda y: bhd_top_at(hull, y))
+    if poly is None:
+        return None
+    xs = np.array([BOW_SPLIT - BHD_T, BOW_SPLIT])
+    return to_trimesh(loft(xs, [poly, poly]))
+
+
+def bulkhead_cutter(hull, x0, x1, n=64):
+    """Everything below the arched sill over x = [x0, x1]: a slab, wider than the hull,
+    whose top edge follows bhd_top_at. Subtracted from the BOW's hollowing cavity, so the
+    bow simply keeps its material there -- the bulkhead is lofted-in, never unioned on."""
+    zt, yw = _bhd_profile(hull)
+    z0 = hull.interp(BOW_SPLIT)[5] - 6.0
+    ymax = 2.0 * max(st[3] for st in h2.STATIONS)
+    poly = [(-ymax, z0), (ymax, z0), (ymax, zt)]
+    poly += [(y, bhd_top_at(hull, y))                     # arch, endpoints excluded so no
+             for y in np.linspace(yw, -yw, n + 2)[1:-1]]  # vertex lands on the flat ends
+    poly += [(-ymax, zt)]
+    return to_trimesh(loft(np.array([x0, x1]), [poly, poly]))
+
+
+# ------------------------------------------------------------------
 # Mesh assembly / export
 # ------------------------------------------------------------------
 def to_trimesh(vf):
@@ -1220,14 +1638,14 @@ def make_manifold(m):
     import trimesh
     import pymeshfix
 
-    def _pmf(mesh):                                      # one pymeshfix pass, C-stderr silenced
+    def _pmf(mesh, joincomp=True):                       # one pymeshfix pass, C-stderr silenced
         v = np.ascontiguousarray(mesh.vertices, np.float64)
         f = np.ascontiguousarray(mesh.faces, np.int32)
         saved = os.dup(2); nul = os.open(os.devnull, os.O_WRONLY)
         os.dup2(nul, 2); os.close(nul)
         try:
             vc, fc = pymeshfix.clean_from_arrays(
-                v, f, joincomp=True, remove_smallest_components=False)
+                v, f, joincomp=joincomp, remove_smallest_components=False)
         finally:
             os.dup2(saved, 2); os.close(saved)
         return vc, fc, len(mesh.faces) - len(fc)
@@ -1245,14 +1663,32 @@ def make_manifold(m):
     # pymeshfix pass; keep it only if it preserved the solid (else pymeshfix would hack
     # out real geometry -- keep the edge-manifold original, which stays watertight/slicer
     # -safe and whose print chunks are re-derived by boolean anyway).
+    #
+    # The growth guard is separate and much tighter than the shrink one, because ADDING
+    # volume is pymeshfix's signature failure here: joincomp=True bridges any deep narrow
+    # slot or opening it decides is a crack. That is what put the flat membranes on the
+    # rev-3.2 foredeck, and (rev-3.4) what was silently FILLING the centreline bow-key
+    # channel in the center -- +8.8 in^3 on a 5080 in^3 tub, only 0.17%, so a symmetric
+    # 3% test waved it straight through and the bow then had nowhere to seat its key.
     if not (m32.is_watertight and _nonmanifold_edge_count(m32) == 0):
         v0 = abs(m32.volume)
-        vc, fc, _ = _pmf(m32)
-        r = trimesh.Trimesh(vc, fc, process=True)
-        trimesh.repair.fix_normals(r)
-        if r.is_watertight and _nonmanifold_edge_count(r) == 0 and \
-                (v0 <= 0 or abs(abs(r.volume) - v0) / v0 <= 0.03):
-            return r
+        worst = 0.0
+        # joincomp=False FIRST: joining components is exactly the pass that bridges a
+        # slot, and none of these pieces is meant to gain one.
+        for joincomp in (False, True):
+            vc, fc, _ = _pmf(m32, joincomp=joincomp)
+            r = trimesh.Trimesh(vc, fc, process=True)
+            trimesh.repair.fix_normals(r)
+            dv = (abs(r.volume) - v0) / v0 if v0 > 0 else 0.0
+            if r.is_watertight and _nonmanifold_edge_count(r) == 0 and -0.03 <= dv <= 1e-4:
+                return r
+            worst = max(worst, dv)
+        if worst > 1e-4:
+            print(f"  .. pymeshfix wanted to ADD {worst*v0:.2f} in^3 ({100*worst:.2f}%) to "
+                  f"this piece -- that is a bridged slot, not a repair, so it is refused; "
+                  f"keeping the full-precision mesh (the export-scale pass is the one that "
+                  f"gates the .stl)")
+        return m                                         # full precision, not the f32 sim
     return m32
 
 
@@ -1297,25 +1733,30 @@ def _prism(poly_xy, z0, z1):
     return m
 
 
-def _key_prism(hull, xk, s):
-    """The dovetail KEY for station xk, side s (+1 stbd / -1 port). Same object is the
-    tongue (added to the wedge) and the cutter for the socket (subtracted from center).
+def _key_prism(hull, xk, s, clr=0.0):
+    """The dovetail KEY for station xk, side s (+1 stbd / -1 port). Shape is shared by the
+    tongue (clr=0, unioned into the wedge) and the socket cutter (clr=KEY_CLR, subtracted
+    from the center) -- the cutter is the tongue grown clr on every face, so the two still
+    mate on the same geometry but with a real gap instead of an interference fit.
     Vertical (extruded in z) so the wedge drops straight down onto it; the fore-aft
     flare KEY_BACK>KEY_MOUTH locks pull-apart. Socket open at the rim (z1=sz)."""
     yc = ycut(xk)
     kz, sz = hull.interp(xk)[5], hull.interp(xk)[3]
-    z0 = kz + WATERLINE / DESIGN_SCALE + 1.0        # above the waterline
+    z0 = waterline_z(hull) + 1.0 - clr              # above the waterline; floor relieved
     z1 = sz                                         # up to the rim -> open at top
     M, B, D, T = KEY_MOUTH / 2, KEY_BACK / 2, KEY_DEPTH, KEY_STUB
     poly = [(xk - M, s * (yc + T)), (xk + M, s * (yc + T)),   # stub out into the wedge
             (xk + M, s * yc), (xk + B, s * (yc - D)),         # mouth -> flared back
             (xk - B, s * (yc - D)), (xk - M, s * yc)]
+    if clr > 0:
+        poly = offset_poly(poly, -clr)              # grow every face outward by clr
     return _prism(poly, z0, z1)
 
 
 def add_vertical_dovetails(hull, pieces):
     """Cut a flared socket in the center and add the matching tongue to each wedge, at
-    every KEY_X / side. Center and wedge use the SAME prism -> they mate exactly. A
+    every KEY_X / side. Center and wedge use the same prism, the center's grown by
+    KEY_CLR -> they mate with a uniform gap instead of line-to-line. A
     backing boss is unioned into the center first so the socket has surrounding
     material. Returns the updated pieces dict. Keeps every piece watertight."""
     import trimesh
@@ -1324,16 +1765,17 @@ def add_vertical_dovetails(hull, pieces):
     for xk in KEY_X:
         yc = ycut(xk)
         kz, sz = hull.interp(xk)[5], hull.interp(xk)[3]
-        z0 = kz + WATERLINE / DESIGN_SCALE + 1.0
+        z0 = waterline_z(hull) + 1.0
         for s in (+1, -1):
-            key = _key_prism(hull, xk, s)
+            key = _key_prism(hull, xk, s)                    # the tongue, exact size
+            socket = _key_prism(hull, xk, s, clr=KEY_CLR)    # ...grown -> the pocket
             # backing boss in the center wall around the socket
-            yb0, yb1 = s * yc, s * (yc - (KEY_DEPTH + 0.4))
+            yb0, yb1 = s * yc, s * (yc - (KEY_DEPTH + 0.4 + KEY_CLR))
             ext = [KEY_BACK + 1.2, abs(yb1 - yb0), (sz - (z0 - 0.3))]
             T = np.eye(4)
             T[:3, 3] = [xk, 0.5 * (yb0 + yb1), 0.5 * ((z0 - 0.3) + sz)]
             boss = trimesh.creation.box(extents=ext, transform=T)
-            c = out["center"].union(boss).difference(key)
+            c = out["center"].union(boss).difference(socket)
             trimesh.repair.fix_normals(c)
             out["center"] = c
             w = out[wedge_of[s]].union(key)
@@ -1342,15 +1784,26 @@ def add_vertical_dovetails(hull, pieces):
     return out
 
 
-def _bow_key_poly(yk, mouth, back):
+def _bow_key_poly(yk, mouth, back, clr=0.0):
     """Horizontal (x,y) section of a bow<->center key: a dovetail flared along X. Narrow
     mouth (+/-mouth) at the x=BOW_SPLIT face, widening to +/-back at x=BOW_SPLIT-BKEY_DEPTH
     (AFT, inside the center) -> the bow cannot be pulled forward. A BKEY_STUB stub runs
     forward of the face so the tongue has a root in the bow. Same vertex order as
-    _key_prism, just with the roles of x and y swapped."""
-    return [(BOW_SPLIT + BKEY_STUB, yk - mouth), (BOW_SPLIT + BKEY_STUB, yk + mouth),
+    _key_prism, just with the roles of x and y swapped. clr>0 grows every face outward by
+    clr -> the center-side channel, which is how the tongue gets a fit gap."""
+    poly = [(BOW_SPLIT + BKEY_STUB, yk - mouth), (BOW_SPLIT + BKEY_STUB, yk + mouth),
             (BOW_SPLIT, yk + mouth), (BOW_SPLIT - BKEY_DEPTH, yk + back),
             (BOW_SPLIT - BKEY_DEPTH, yk - back), (BOW_SPLIT, yk - mouth)]
+    return offset_poly(poly, -clr) if clr > 0 else poly
+
+
+def _key_top(hull, yk, back):
+    """Top of a key tongue that has to fill its channel right up through the bulkhead:
+    the LOWEST point of the arched sill over the key's own footprint, held BKEY_TOP_GAP
+    below it. Taking the minimum keeps the tongue from standing proud of the arch, and
+    the gap keeps its cap out of the sill plane."""
+    ys = np.linspace(yk - back, yk + back, 9)
+    return min(bhd_top_at(hull, y) for y in ys) - BKEY_TOP_GAP
 
 
 def bow_key_specs(hull):
@@ -1363,11 +1816,20 @@ def bow_key_specs(hull):
     sole = max(thick_floor_inner(hull, x)[0][1]                 # cockpit sole top, y=0
                for x in (BOW_SPLIT - BKEY_DEPTH - BKEY_BOSS, BOW_SPLIT))
     z0 = max(BKEY_CTR_Z0, sole + 0.35)
-    specs.append(dict(
-        name="centre", yk=0.0, mouth=BKEY_CTR_MOUTH, back=BKEY_CTR_BACK,
-        z0=z0, z1=z0 + BKEY_CTR_H,
-        boss_y=(-(BKEY_CTR_BACK + BKEY_BOSS), BKEY_CTR_BACK + BKEY_BOSS),
-        boss_z=(min(sole - 0.2, z0 - BKEY_SILL - 0.4), z0 + BKEY_CTR_H + BKEY_BOSS)))
+    if BULKHEAD:
+        # The key now lives INSIDE the bulkhead, so it needs no boss of its own (there is
+        # solid web all round it) and it is run the full height of the web: the center's
+        # socket is cut as a full-height channel, so a short tongue would leave that
+        # channel open through the top of the bulkhead.
+        specs.append(dict(
+            name="centre", yk=0.0, mouth=BKEY_CTR_MOUTH, back=BKEY_CTR_BACK,
+            z0=z0, z1=_key_top(hull, 0.0, BKEY_CTR_BACK), boss_y=None, boss_z=None))
+    else:
+        specs.append(dict(
+            name="centre", yk=0.0, mouth=BKEY_CTR_MOUTH, back=BKEY_CTR_BACK,
+            z0=z0, z1=z0 + BKEY_CTR_H,
+            boss_y=(-(BKEY_CTR_BACK + BKEY_BOSS), BKEY_CTR_BACK + BKEY_BOSS),
+            boss_z=(min(sole - 0.2, z0 - BKEY_SILL - 0.4), z0 + BKEY_CTR_H + BKEY_BOSS)))
 
     # --- keys 2+3: one per side at mid-height, inside the flange ring ---
     z0 = BKEY_SIDE_Z0
@@ -1375,15 +1837,18 @@ def bow_key_specs(hull):
     if band is not None:
         y_out = band[1] - BKEY_SIDE_EDGE                        # stay inside the skin
         yk = y_out - BKEY_SIDE_BACK
+        z1 = z0 + BKEY_SIDE_H
+        if BULKHEAD:                            # run them up to the top of the web too,
+            z1 = max(z1, _key_top(hull, yk, BKEY_SIDE_BACK))   # so their channels fill it
         for s in (+1, -1):
             specs.append(dict(
                 name=f"side{'S' if s > 0 else 'P'}", yk=s * yk,
                 mouth=BKEY_SIDE_MOUTH, back=BKEY_SIDE_BACK,
-                z0=z0, z1=z0 + BKEY_SIDE_H,
+                z0=z0, z1=z1,
                 # boss grows INBOARD only -- outboard is the hull skin, which must not move
                 boss_y=tuple(sorted((s * y_out,
                                      s * (yk - BKEY_SIDE_BACK - BKEY_BOSS)))),
-                boss_z=(z0 - BKEY_SILL - 0.4, z0 + BKEY_SIDE_H + BKEY_BOSS)))
+                boss_z=(z0 - BKEY_SILL - 0.4, z1 + BKEY_BOSS)))
     return specs
 
 
@@ -1399,27 +1864,52 @@ def _key_boss(spec, x0, x1):
 
 def add_bow_keys(hull, pieces):
     """Cut a full-height flared channel in the CENTER and add the matching tongue to the
-    BOW at every key station. Center and bow use the SAME prism section, so they mate
-    exactly. A backing boss is unioned into each piece FIRST so the socket is surrounded
+    BOW at every key station. Center and bow use the same prism section, the center's
+    grown by KEY_CLR -> a uniform fit gap. A backing boss is unioned into each piece
+    FIRST so the socket is surrounded
     by material and never reaches the watertight skin. Returns (pieces, specs)."""
     import trimesh
     out = dict(pieces)
     sz = hull.interp(BOW_SPLIT)[3]
     for spec in bow_key_specs(hull):
         poly = _bow_key_poly(spec["yk"], spec["mouth"], spec["back"])
+        chan_poly = _bow_key_poly(spec["yk"], spec["mouth"], spec["back"], clr=KEY_CLR)
+        has_boss = spec["boss_y"] is not None      # a key buried in the bulkhead needs none
         # CENTER: boss, then a channel open at the rim so the tongue can ride down it
-        boss_c = _key_boss(spec, BOW_SPLIT - BKEY_DEPTH - BKEY_BOSS, BOW_SPLIT)
-        chan = _prism(poly, spec["z0"] - BKEY_SILL, sz + 1.0)
-        c = out["center"].union(boss_c).difference(chan)
+        chan = _prism(chan_poly, spec["z0"] - BKEY_SILL - KEY_CLR, sz + 1.0)
+        c = out["center"]
+        if has_boss:
+            c = c.union(_key_boss(spec, BOW_SPLIT - BKEY_DEPTH - BKEY_BOSS, BOW_SPLIT))
+        c = c.difference(chan)
         trimesh.repair.fix_normals(c)
         out["center"] = c
         # BOW: boss, then the tongue (only its working z-band)
-        boss_b = _key_boss(spec, BOW_SPLIT, BOW_SPLIT + BKEY_STUB + BKEY_BOSS)
         tongue = _prism(poly, spec["z0"], spec["z1"])
-        b = out["bow"].union(boss_b).union(tongue)
+        b = out["bow"]
+        if has_boss:
+            b = b.union(_key_boss(spec, BOW_SPLIT, BOW_SPLIT + BKEY_STUB + BKEY_BOSS))
+        b = b.union(tongue)
         trimesh.repair.fix_normals(b)
         out["bow"] = b
     return out, bow_key_specs(hull)
+
+
+def check_pods_sealed(hull):
+    """Worst hole-into-cavity overlap for the wedge bolts, in^3 REAL. Must be zero: each
+    one is a blind hole in a sealed buoyancy pod. Nothing else in this file can catch a
+    breach -- watertight and manifold both stay True when a hole opens into an internal
+    void -- so this is the check that has to be run."""
+    cav = build_wedge_cavity(hull, +1)
+    if cav is None:
+        return 0.0
+    worst = 0.0
+    for x in BOLT_WEDGE_X:
+        yc = ycut(x)
+        for below in BOLT_WEDGE_BELOW:
+            z = hull.interp(x)[3] - below
+            cyl = _bolt_cyl([x, yc - BOLT_WEDGE_IN, z], [x, yc + BOLT_WEDGE_OUT, z])
+            worst = max(worst, cav.intersection(cyl).volume)
+    return worst * DESIGN_SCALE ** 3
 
 
 def check_key_sweep(pieces, n=7, lift=26.0):
@@ -1493,6 +1983,58 @@ def add_bolt_holes(hull, pieces):
     return out, records
 
 
+def transom_pad_thick_at(y, z, z_ledge):
+    """Total transom thickness the clamp pad aims for at (y, z): TRANSOM_PAD_THICK over the
+    pad, smoothstepping down to just inside the base slab in y (outboard of TRANSOM_PAD)
+    and in z (below the notch ledge). Both fades are C1, so the pad reads as a moulded lens
+    on the inside of the transom rather than a bonded-on block."""
+    fy = 1.0 - _smoothstep((abs(y) - TRANSOM_PAD) / TRANSOM_BLEND)
+    fz = _smoothstep((z - (z_ledge - TRANSOM_PAD_DROP - TRANSOM_PAD_FADE))
+                     / TRANSOM_PAD_FADE)
+    base = TRANSOM_THICK - TRANSOM_PAD_BURY
+    return base + (TRANSOM_PAD_THICK - base) * fy * fz
+
+
+def build_transom_pad(hull, ny=61, nz=29):
+    """The outboard clamp pad: a closed grid solid whose forward face is the height field
+    transom_pad_thick_at(y, z) and whose back face is buried inside the slab. Unioned into
+    the center AFTER build_transom, BEFORE the notch is cut (so the notch goes through the
+    pad too and leaves the two clamp landings either side of it)."""
+    import trimesh
+    kz = hull.interp(0.0)[5]
+    sz = hull.interp(0.0)[3]
+    z_ledge = kz + NOTCH_TOP / DESIGN_SCALE
+    ys = np.linspace(-(TRANSOM_PAD + TRANSOM_BLEND), TRANSOM_PAD + TRANSOM_BLEND, ny)
+    # stop a hair below the sheer so the pad's top face is NOT coplanar with the transom's
+    z0 = z_ledge - TRANSOM_PAD_DROP - TRANSOM_PAD_FADE
+    zs = np.linspace(z0, sz - 0.02, nz)
+    x_back = 0.15                                           # inside the slab, ahead of x=0
+    V = []
+    for y in ys:                                            # front face, then back face
+        for z in zs:
+            V.append((transom_pad_thick_at(y, z, z_ledge), y, z))
+    for y in ys:
+        for z in zs:
+            V.append((x_back, y, z))
+    N = ny * nz
+    idx = lambda i, j, back: (N if back else 0) + i * nz + j
+    F = []
+    quad = lambda a, b, c, d: F.extend(([a, b, c], [a, c, d]))
+    for i in range(ny - 1):
+        for j in range(nz - 1):
+            quad(idx(i, j, 0), idx(i, j + 1, 0), idx(i + 1, j + 1, 0), idx(i + 1, j, 0))
+            quad(idx(i, j, 1), idx(i + 1, j, 1), idx(i + 1, j + 1, 1), idx(i, j + 1, 1))
+    for i in range(ny - 1):                                 # bottom / top edge walls
+        quad(idx(i, 0, 0), idx(i + 1, 0, 0), idx(i + 1, 0, 1), idx(i, 0, 1))
+        quad(idx(i, nz - 1, 0), idx(i, nz - 1, 1), idx(i + 1, nz - 1, 1), idx(i + 1, nz - 1, 0))
+    for j in range(nz - 1):                                 # port / stbd edge walls
+        quad(idx(0, j, 0), idx(0, j, 1), idx(0, j + 1, 1), idx(0, j + 1, 0))
+        quad(idx(ny - 1, j, 0), idx(ny - 1, j + 1, 0), idx(ny - 1, j + 1, 1), idx(ny - 1, j, 1))
+    m = trimesh.Trimesh(vertices=np.array(V, float), faces=np.array(F, int), process=True)
+    trimesh.repair.fix_normals(m)
+    return m
+
+
 def build_transom(hull):
     """Solid transom slab closing the center's stern: the center's x=0 outer section
     (V-bottom + vertical sides + flat top at the sheer) extruded aft to TRANSOM_THICK.
@@ -1546,7 +2088,7 @@ def build_notch_box(hull):
     A = (-hwz(z_top), z_top); B = (-wb, z_notch); C = (wb, z_notch); D = (hwz(z_top), z_top)
     poly = [A] + fillet(A, B, C) + fillet(B, C, D) + [D]   # rounded-trapezoid outline (y-z)
 
-    x0, x1 = -0.5, TRANSOM_THICK + 0.5                    # extrude through the transom
+    x0, x1 = -0.5, max(TRANSOM_THICK, TRANSOM_PAD_THICK) + 0.5   # through slab AND pad
     n = len(poly)
     V = [(x0, y, z) for (y, z) in poly] + [(x1, y, z) for (y, z) in poly]
     F = []
@@ -1576,8 +2118,8 @@ def render_bolts(hull, bolts, out_path):
     ax1.fill_between([s * x for x in xs], [s * z for z in zc], [s * z for z in sz],
                      color="#cfe0f5", label="stbd mating wall")
     ax1.plot([s * x for x in xs],
-             [s * (hull.interp(x)[5] + WATERLINE / DESIGN_SCALE) for x in xs],
-             "b--", lw=1.2, label="waterline")
+             [s * waterline_z(hull) for _ in xs],
+             "b--", lw=1.2, label=f"waterline ({WATERLINE:.1f}\" @ {DESIGN_LOAD_LB:.0f} lb)")
     for (kind, x, y, z) in bolts:
         if kind == "wedge" and y > 0:
             ax1.plot(s * x, s * z, "o", color="#c0392b", ms=11, mfc="none", mew=2)
@@ -1593,7 +2135,7 @@ def render_bolts(hull, bolts, out_path):
     ax2.plot([s * v for v in oy], [s * v for v in oz], "-", color="#5B8FF9", lw=2)
     ax2.plot([-s * v for v in oy], [s * v for v in oz], "-", color="#5B8FF9", lw=2,
              label="hull section @ split")
-    ax2.axhline(s * (hull.interp(BOW_SPLIT)[5] + WATERLINE / DESIGN_SCALE),
+    ax2.axhline(s * waterline_z(hull),
                 color="b", ls="--", lw=1.2, label="waterline")
     for (kind, x, y, z) in bolts:
         if kind == "bow":
@@ -1609,6 +2151,126 @@ def render_bolts(hull, bolts, out_path):
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.savefig(str(out_path), dpi=140, bbox_inches="tight")
     plt.close()
+
+
+# ------------------------------------------------------------------
+# HYDROSTATICS  (displacement vs waterplane -> the derived waterline)
+# ------------------------------------------------------------------
+def _env_profile(hull, x):
+    """Outer ENVELOPE half-profile (zs ascending, ys) at design station x -- the surface
+    the water actually sees, not the printed material. Aft of the split that is the raw
+    hull section; forward of it the bow's own profile, which carries the plan taper, the
+    convexity and the flare that bow_section applies on top of the base lines."""
+    if x <= BOW_SPLIT:
+        o = hull.half_outer(x)
+        return np.array([p[1] for p in o]), np.array([p[0] for p in o])
+    return _bow_profile_hw(hull, x)
+
+
+def _env_stations(hull, n=240):
+    """Cached (xs, profiles) for the whole envelope -- the bisection below asks for these
+    a few dozen times and _bow_profile_hw is not cheap."""
+    c = _env_stations._cache.get((id(hull), n))
+    if c is None:
+        xs = np.linspace(0.0, LOA - 0.5, n)
+        c = (xs, [_env_profile(hull, x) for x in xs])
+        _env_stations._cache[(id(hull), n)] = c
+    return c
+
+
+_env_stations._cache = {}
+
+
+def displacement_lb(hull, z, n=240):
+    """Displacement in REAL pounds with the static waterplane at DESIGN height z.
+    Immersed half-section area is integrated over height at each station, doubled for
+    both sides, integrated over the length, then scaled by DESIGN_SCALE**3."""
+    xs, profs = _env_stations(hull, n)
+    area = []
+    for (zs, ys) in profs:
+        zlo = zs.min()
+        if z <= zlo:
+            area.append(0.0)
+            continue
+        zz = np.linspace(zlo, min(z, zs.max()), 60)
+        area.append(2.0 * np.trapezoid(np.interp(zz, zs, ys), zz))
+    return float(np.trapezoid(area, xs)) * DESIGN_SCALE ** 3 * WATER_LB_PER_IN3
+
+
+def waterplane_for_load(hull, lb, n=240):
+    """Design z of the waterplane that displaces `lb`. Plain bisection -- displacement is
+    monotonic in z, and 60 halvings of a 24" bracket is well past float precision."""
+    xs, profs = _env_stations(hull, n)
+    lo = min(zs.min() for (zs, _) in profs)
+    hi = max(zs.max() for (zs, _) in profs)
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        if displacement_lb(hull, mid, n) < lb:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+_WATERLINE_Z = None      # design z of the derived waterplane (set by set_waterline_from_load)
+
+
+def set_waterline_from_load(hull, lb=None):
+    """Solve for the static waterplane at `lb` all-up and adopt it as THE waterline for
+    every rule in this file. Also refreshes WATERLINE so labels and printouts quote the
+    derived number rather than the old literal."""
+    global _WATERLINE_Z, WATERLINE
+    _WATERLINE_Z = waterplane_for_load(hull, DESIGN_LOAD_LB if lb is None else lb)
+    WATERLINE = (_WATERLINE_Z - hull.interp(BOW_SPLIT)[5]) * DESIGN_SCALE
+    return _WATERLINE_Z
+
+
+def waterline_z(hull):
+    """Design z of the static waterplane -- a HORIZONTAL plane.
+
+    The old code took "WATERLINE inches above the LOCAL keel" at every station, but the
+    keel carries ~13" of rocker, so that surface is not a waterline at all: amidships it
+    sat ~1" BELOW the real one, which made the "above the waterline" rules there quietly
+    too lax. Everything now references this single plane instead."""
+    if _WATERLINE_Z is not None:
+        return _WATERLINE_Z
+    return hull.interp(BOW_SPLIT)[5] + WATERLINE / DESIGN_SCALE
+
+
+def report_hydrostatics(hull, hull_lb):
+    """Draft / displacement table for the real boat, and what the derived waterline and
+    the bulkhead sill actually correspond to in pounds. Static, level trim, upright."""
+    s = DESIGN_SCALE
+    wz = waterline_z(hull)
+    sheer = hull.interp(BOW_SPLIT)[3] * s
+    print(f"\nHydrostatics (real boat, fresh water @ {WATER_LB_PER_IN3} lb/in^3, "
+          f"static + level trim):")
+    print(f"  DESIGN_LOAD_LB = {DESIGN_LOAD_LB:.0f} lb all-up  ->  waterplane at "
+          f"z = {wz*s:.2f}\" real  ->  WATERLINE = {WATERLINE:.2f}\"")
+    print(f"  {'all-up lb':>10}  {'waterplane z':>13}  {'freeboard':>10}  "
+          f"{'vs sill @skin':>13}  {'vs sill @ctr':>12}")
+    zt = bhd_z_top(hull) * s if BULKHEAD else None
+    zc = bhd_top_at(hull, 0.0) * s if BULKHEAD else None
+    loads = [hull_lb, hull_lb + 200, hull_lb + 400, DESIGN_LOAD_LB,
+             hull_lb + 600, hull_lb + 750, hull_lb + 900]
+    for lb in sorted(set(round(v) for v in loads)):
+        z = waterplane_for_load(hull, lb) * s
+        tag = "  <- DESIGN_LOAD" if abs(lb - DESIGN_LOAD_LB) < 1 else \
+              ("  <- bare hull" if abs(lb - hull_lb) < 1 else "")
+        cols = f"  {lb:10.0f}  {z:12.2f}\"  {sheer-z:9.1f}\""
+        if BULKHEAD:
+            cols += f"  {zt-z:+12.1f}\"  {zc-z:+11.1f}\""
+        print(cols + tag)
+    print(f"  reserve: bare hull floats at {waterplane_for_load(hull, hull_lb)*s:.2f}\"; "
+          f"swamped to the sheer ({sheer:.1f}\") it would displace "
+          f"{displacement_lb(hull, sheer/s):.0f} lb")
+    if BULKHEAD:
+        print(f"  the {BHD_TOP:.0f}\" sill is reached at {displacement_lb(hull, zt/s):.0f} lb "
+              f"all-up; the {BHD_TOP-BHD_DIP:.0f}\" centreline dip at "
+              f"{displacement_lb(hull, zc/s):.0f} lb")
+    print("  (level trim assumed. Crew aft trims the stern down, but the joint is at "
+          f"x={BOW_SPLIT*s:.0f}\" of {LOA*s:.0f}\" -- forward of amidships -- so it GAINS "
+          "margin in that case.)")
 
 
 def report(name, m):
@@ -1773,8 +2435,9 @@ def render_bow_flare(hull, out_path):
             ax.axhline(s * z0, color="#e08a00", lw=0.7, ls=":",
                        label="flare starts (f=%.2f)" % BOW_FLARE_F0
                        if first and row == 0 else None)
-            ax.axhline(s * (kz + WATERLINE / DESIGN_SCALE), color="#1f77b4", lw=1.2,
-                       ls="--", label='waterline (7" real)' if first and row == 0 else None)
+            ax.axhline(s * waterline_z(hull), color="#1f77b4", lw=1.2, ls="--",
+                       label=f'waterline ({WATERLINE:.1f}" @ {DESIGN_LOAD_LB:.0f} lb)'
+                       if first and row == 0 else None)
             ax.axhline(s * cz, color="#bbb", lw=0.7)
             ax.set_aspect("equal")
             ax.grid(alpha=0.22)
@@ -1999,8 +2662,13 @@ def render_iface_flange(hull, pieces, bolts, out_path):
             if kind == "bow":
                 ax.plot(s * y, s * z, "o", ms=9, mfc="none", mew=1.8, color="#111")
         ax.plot([], [], "o", ms=9, mfc="none", mew=1.8, color="#111", label="bolt hole")
-        ax.axhline(s * (hull.interp(BOW_SPLIT)[5] + WATERLINE / DESIGN_SCALE),
-                   color="#1f77b4", ls="--", lw=1.0, label='waterline (7" real)')
+        ax.axhline(s * waterline_z(hull), color="#1f77b4", ls="--", lw=1.0,
+                   label=f'waterline ({WATERLINE:.1f}" @ {DESIGN_LOAD_LB:.0f} lb)')
+        if BULKHEAD:
+            _by, _bz = bhd_top_curve(hull)
+            ax.plot(s * _by, s * _bz, "-", color="#e67e22", lw=1.8,
+                    label=f'arched bulkhead sill ({BHD_TOP:.0f}" at the skin, '
+                          f'{BHD_DIP:.0f}" dip) -- solid web below')
         ax.set_aspect("equal"); ax.grid(alpha=0.22)
         ax.set_title(ttl, fontsize=10, fontweight="bold")
         ax.set_xlabel("beam y (real in)")
@@ -2042,7 +2710,11 @@ def render_iface_flange(hull, pieces, bolts, out_path):
 
     fig.suptitle(f"Interface flange: {FLANGE_W*s:.1f}\" wide x {FLANGE_T*s:.1f}\" thick "
                  f"bulkhead ring on EACH side of the x=60 joint "
-                 f"({2*FLANGE_T*s:.1f}\" of bolt grip, was ~{2*SKIN*s:.2f}\")",
+                 f"({2*FLANGE_T*s:.1f}\" of bolt grip, was ~{2*SKIN*s:.2f}\")"
+                 + (f"  --  plus a SOLID web below the arched sill "
+                    f"({BHD_T*s:.1f}\" each side; {BHD_TOP:.0f}\" at the skin, "
+                    f"{BHD_TOP-BHD_DIP:.0f}\" on the centreline), all of it ABOVE the "
+                    f"waterline" if BULKHEAD else ""),
                  fontsize=14, fontweight="bold")
     plt.tight_layout(rect=[0, 0, 1, 0.92])
     plt.savefig(str(out_path), dpi=140, bbox_inches="tight")
@@ -2056,7 +2728,7 @@ def render_bow_keys(hull, pieces, keys, out_path):
     import matplotlib.pyplot as plt
     import trimesh
     s = DESIGN_SCALE
-    wl = s * (hull.interp(BOW_SPLIT)[5] + WATERLINE / DESIGN_SCALE)
+    wl = s * waterline_z(hull)
 
     fig = plt.figure(figsize=(21, 7.4))
 
@@ -2079,7 +2751,12 @@ def render_bow_keys(hull, pieces, keys, out_path):
                                        ec="#c0392b"))
         ax.plot([], [], "--", color="#c0392b", lw=1.4,
                 label="key channel" if name == "center" else "key tongue")
-        ax.axhline(wl, color="#1f77b4", ls="--", lw=1.1, label='waterline (7" real)')
+        ax.axhline(wl, color="#1f77b4", ls="--", lw=1.1,
+                   label=f'waterline ({WATERLINE:.1f}" @ {DESIGN_LOAD_LB:.0f} lb)')
+        if BULKHEAD:
+            _by, _bz = bhd_top_curve(hull)
+            ax.plot(s * _by, s * _bz, "-", color="#e67e22", lw=1.8,
+                    label=f'arched bulkhead sill ({BHD_TOP:.0f}"/{BHD_TOP-BHD_DIP:.0f}" real)')
         for (kind, _x, y, z) in getattr(render_bow_keys, "_bolts", []):
             if kind == "bow":
                 ax.plot(s * y, s * z, "o", ms=8, mfc="none", mew=1.6, color="#111")
@@ -2117,8 +2794,10 @@ def render_bow_keys(hull, pieces, keys, out_path):
     ax.set_title("Joint exploded -- bow lifted up & forward off its channels",
                  fontsize=10, fontweight="bold")
 
-    fig.suptitle("Bow<->center vertical drop-in dovetail keys: 1 low centreline key "
-                 "(BELOW the waterline, where no bolt may go) + 1 per side",
+    fig.suptitle("Bow<->center vertical drop-in dovetail keys: 1 centreline key "
+                 "(spanning the below-waterline zone, where no bolt may go) + 1 per side"
+                 + ("\nall three run right up to the arched bulkhead sill, so no channel "
+                    "is left open through the web" if BULKHEAD else ""),
                  fontsize=14, fontweight="bold")
     plt.tight_layout(rect=[0, 0, 1, 0.91])
     plt.savefig(str(out_path), dpi=140, bbox_inches="tight")
@@ -2371,14 +3050,34 @@ def render_transport_packing(hull, pieces, out_path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--scale", type=float, default=10)
+    ap.add_argument("--key-clearance-mm", type=float, default=None,
+                    help=f"per-face fit gap on every dovetail key/socket, in REAL mm "
+                         f"(default {KEY_CLR_MM}). It does NOT shrink with --scale, so a "
+                         f"1:N fit test wants about N x the gap you want on the model, "
+                         f"e.g. --scale 10 --key-clearance-mm 5")
     ap.add_argument("--no-preview", action="store_true")
     ap.add_argument("--output-dir", default="split_out")
     args = ap.parse_args()
 
+    global KEY_CLR
+    if args.key_clearance_mm is not None:
+        KEY_CLR = (args.key_clearance_mm / 25.4) / DESIGN_SCALE
+    clr_mm = KEY_CLR * DESIGN_SCALE * 25.4
+
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
+    print(f"Dovetail key fit gap: {clr_mm:.2f} mm per face on the real boat "
+          f"(= {clr_mm/args.scale:.3f} mm at 1:{args.scale:.0f} -- clearance does NOT "
+          f"scale; rerun with --key-clearance-mm {clr_mm*args.scale:.0f} for a fit test "
+          f"that feels right on the model)")
+
     hull = DinghyHull()
+    # Derive the waterline BEFORE any geometry is built -- dovetail_params, _key_prism and
+    # the bolt rules all read waterline_z().
+    _wz = set_waterline_from_load(hull)
+    print(f"Design load {DESIGN_LOAD_LB:.0f} lb all-up -> waterline z={_wz*DESIGN_SCALE:.2f}\" "
+          f"real (WATERLINE={WATERLINE:.2f}\")")
     print("Building split pieces...")
     raw = {
         "center": build_center(hull),
@@ -2389,6 +3088,7 @@ def main():
 
     pieces = {}
     flange_vol = {}
+    bhd_vol = {}
     for name, vf in raw.items():
         m = to_trimesh(vf)
         if name.startswith("wedge"):
@@ -2402,6 +3102,7 @@ def main():
         if name == "center":
             import trimesh
             m = m.union(build_transom(hull))               # close the stern
+            m = m.union(build_transom_pad(hull))           # + the outboard clamp pad
             if MOTOR_NOTCH:
                 m = m.difference(build_notch_box(hull))    # outboard motor cutout
             trimesh.repair.fix_normals(m)
@@ -2432,6 +3133,18 @@ def main():
                 m = m.union(fl)
                 trimesh.repair.fix_normals(m)
                 flange_vol[name] = fl.volume
+        if BULKHEAD and name == "center":
+            # The CENTER's half of the bottom bulkhead. (The BOW's half is already there:
+            # build_bow_cavity cut this region out of the hollowing cavity, so the bow
+            # simply kept its material -- nothing is unioned on that side.)
+            import trimesh
+            bh = build_bulkhead_center(hull)
+            if bh is None:
+                print("  !! center bulkhead could not be built")
+            else:
+                m = m.union(bh)
+                trimesh.repair.fix_normals(m)
+                bhd_vol[name] = bh.volume
         pieces[name] = m
 
     if USE_VKEYS:
@@ -2527,6 +3240,25 @@ def main():
         for n, v in flange_vol.items():
             print(f"  {n:8}: +{v*DESIGN_SCALE**3/1728:.3f} ft^3 of ring stock "
                   f"(x {'60..%.1f' % (BOW_SPLIT+FLANGE_T) if n=='bow' else '%.1f..60' % (BOW_SPLIT-FLANGE_T)} design)")
+    if BULKHEAD:
+        _kz = hull.interp(BOW_SPLIT)[5]
+        _zt = bhd_z_top(hull)
+        _wl = waterline_z(hull)
+        _zc = bhd_top_at(hull, 0.0)
+        print(f"Bottom bulkhead at the x=BOW_SPLIT joint: solid web from the keel up to "
+              f"{BHD_TOP:.1f}\" real, {BHD_T*DESIGN_SCALE:.1f}\" thick each side "
+              f"({2*BHD_T*DESIGN_SCALE:.1f}\" assembled):")
+        print(f"  top of the web sits {(_zt-_wl)*DESIGN_SCALE:+.1f}\" above the "
+              f"{WATERLINE:.1f}\" waterline and {(BOLT_BOW_Z[0]-_zt)*DESIGN_SCALE:.1f}\" "
+              f"below the lowest bow bolt")
+        if BHD_DIP > 0:
+            print(f"  arched sill: {BHD_DIP:.1f}\" dip on the centreline -> "
+                  f"{_zc*DESIGN_SCALE:.1f}\" real there ({(_zc-_wl)*DESIGN_SCALE:+.1f}\" "
+                  f"vs the waterline); hatch is {BHD_DIP:.0f}\" taller mid-beam")
+        for n, v in bhd_vol.items():
+            print(f"  {n:8}: +{v*DESIGN_SCALE**3/1728:.3f} ft^3 of web (unioned)")
+        print(f"  bow     : lofted in via build_bow_cavity -> the storage opening now "
+              f"sits on that sill")
 
     # Composite: all 4 pieces merged in their assembled positions -> one viewable STL
     # (and a 1:scale mm version). Same coordinate frame, so this IS the whole boat.
@@ -2540,7 +3272,8 @@ def main():
     print(f"  Composite assembled: dinghy_assembled.stl  "
           f"({cd[0]:.0f} x {cd[1]:.0f} x {cd[2]:.0f} in)")
 
-    estimate_weight(reals)
+    _hull_kg = estimate_weight(reals)
+    report_hydrostatics(hull, _hull_kg * 2.2046)
 
     # Fit / transport summary -- real boat (design x DESIGN_SCALE)
     def rdim(name):
@@ -2594,9 +3327,16 @@ def main():
             print(f"  Saved: {out/'bow_keys.png'}")
 
     # Bolt summary (real units): confirm every bolt sits above the waterline.
+    breach = check_pods_sealed(hull)
+    print(f"\nWedge bolts are BLIND in the pod: {BOLT_WEDGE_OUT*DESIGN_SCALE:.2f}\" deep, "
+          f"{BOLT_WEDGE_BACK*DESIGN_SCALE:.2f}\" of solid behind them (threaded insert; a "
+          f"sealed pod has no nut side).")
+    print(f"  buoyancy pod breach check: {breach:.4f} in^3  "
+          f"{'SEALED' if breach < 1e-4 else '*** HOLE INTO THE POD ***'}")
+
     print("\nBolt holes (real boat):")
     for (kind, x, y, z) in bolts:
-        wl = (hull.interp(x)[5] + WATERLINE / DESIGN_SCALE)
+        wl = waterline_z(hull)
         flag = "OK" if z >= wl else "!! BELOW WL"
         print(f"  {kind:5} @ x={x*DESIGN_SCALE:5.1f} y={y*DESIGN_SCALE:+6.1f} "
               f"z={z*DESIGN_SCALE:5.1f}  ({z-wl:+.1f}\" above WL {flag})")
