@@ -1,6 +1,6 @@
 # Parametric split dinghy
 
-This repository generates the mesh geometry for a 9 ft parametric planing dinghy. The design is uniformly scaled by `DESIGN_SCALE = 0.90` at export, producing a real boat 97 in (8.1 ft) long and 61 in wide at the transom. It is intended to be printed in ASA as a light core and mould surface, then fiberglassed with epoxy. The generated boat separates into four car-transportable pieces.
+This repository generates mesh geometry for a 9 ft parametric planing dinghy. Export applies `DESIGN_SCALE = 0.90` uniformly, producing a real boat 97 in (8.1 ft) long and 61 in wide at the transom. The intended build prints the geometry in ASA as a light core and mould surface, then covers it with fiberglass and epoxy. The generated boat separates into four pieces sized for car transport.
 
 The source geometry uses inches. Full-size STL files are exported in inches; the model STLs are converted to millimetres at the requested 1:N scale.
 
@@ -8,11 +8,11 @@ The source geometry uses inches. Full-size STL files are exported in inches; the
 
 The four generated pieces are:
 
-- `center`: a 54.0 x 41.4 x 21.9 in open center barge, running from the transom to the split. It is a usable floating tub by itself. Its mating cut is a slight trapezoid: 46 in wide in design coordinates at the transom, narrowing to 42 in at the bow split. After export scaling its maximum width is 41.4 in.
+- `center`: a 54.0 x 41.4 x 21.9 in open center barge running from the transom to the split. It is a usable floating tub by itself. Its mating cut forms a slight trapezoid, 46 in wide in design coordinates at the transom and 42 in wide at the bow split. After export scaling, its maximum width is 41.4 in.
 - `wedge_stbd` and `wedge_port`: sealed buoyancy pods carrying the original outboard bottom, spray-railed topside, and gunwale surfaces. Each is about 53.8 x 11.7 x 19.0 in after scaling and tapers to the 42 in design beam at the split.
 - `bow`: a 43.9 x 37.8 x 22.8 in nose section. It is hollowed as a storage shell with a domed aft access opening. The mesh is a clean manifold like a cup, but the storage opening means the bow is not a sealed buoyancy chamber in the current configuration.
 
-For transport, the bow drops into the center cockpit. The current geometry reports 0.71 in minimum width clearance and fits below the rim. The two wedges flip together into a reported 54 x 12 x 38 in bundle; laid flat side by side they occupy 54 x 23 x 19 in.
+For transport, the bow drops into the center cockpit. The current geometry reports 0.71 in of minimum width clearance, with the bow below the rim. The two wedges flip together into a reported 54 x 12 x 38 in bundle. Laid flat side by side, they occupy 54 x 23 x 19 in.
 
 ## Joints
 
@@ -21,7 +21,7 @@ All four pieces assemble vertically. The center has open-top dovetail sockets an
 - Each wedge has three vertical drop-in keys at design x = 8, 24, and 40 in. Their sideways flare prevents the pod pulling away from the center. Two bolts at each key prevent lift, for 12 wedge-to-center bolts total.
 - The bow has three drop-in keys in its aft face: one low centerline key in the solid bottom bulkhead and one side key on each side. The keys prevent forward separation. Four bow-to-center bolts, two heights on each side, prevent lift.
 
-Sockets are grown by a 2.0 mm real gap on every mating face. This clearance is sized to accommodate fiberglass in the joint, print and assembly error, and differential ASA shrink. Bolts provide clamping; the keys provide geometric capture.
+Sockets are grown by a 2.0 mm real gap on every mating face. The gap accommodates fiberglass in the joint, print and assembly error, and differential ASA shrink. Bolts clamp the joint. The keys capture its geometry.
 
 At the bow split, both pieces carry a 2.0 in wide by 1.5 in thick interface-flange ring, with the two rings butting face to face. A solid bottom bulkhead extends from the keel to a 12.0 in sill on each side of the joint; each half is 1.0 in thick, making the assembled web 2.0 in thick. The sill dips 4.0 in at the centerline, to 8.0 in, for a taller storage opening while remaining 1.0 in above the derived design waterline.
 
@@ -47,7 +47,7 @@ uv pip install numpy trimesh matplotlib manifold3d pymeshfix rtree
 `dinghy_split.py` accepts:
 
 - `--scale N`: export an additional 1:N model in millimetres. The default is `10`. This does not change the full-size real-boat STLs.
-- `--key-clearance-mm MM`: set the per-face dovetail fit gap in real millimetres. The default is `2.0`. It is a manufacturing allowance, so it is deliberately not divided by `--scale` — but do not multiply it by `N` for a 1:N model either. The undercut that makes a dovetail hold *does* scale down, and a gap larger than the undercut leaves the socket wider at its mouth than the tongue is at its back, so the key lifts straight out. The default already lands at 0.20 mm on a 1:10 model, which is a normal FDM slip fit. Every run prints the capture margin left at both scales and refuses to stay quiet if the gap is out of range.
+- `--key-clearance-mm MM`: set the per-face dovetail fit gap in real millimetres. The default is `2.0`. This manufacturing allowance is deliberately not divided by `--scale` and must not be multiplied by `N` for a 1:N model. The undercut that makes a dovetail hold scales down. A gap larger than the undercut leaves the socket wider at its mouth than the tongue is at its back, allowing the key to lift straight out. The default becomes 0.20 mm on a 1:10 model, a normal FDM slip fit. Every run prints the capture margin left at both scales and warns when the gap is out of range.
 - `--no-preview`: skip PNG rendering while still building and checking the meshes.
 - `--output-dir PATH`: write generator outputs somewhere other than `split_out/`.
 
@@ -101,7 +101,7 @@ The weight model assumes:
 - Center cockpit interior: one layer of 6 oz plain weave; 0.4 kg/m2. The sealed wedge interiors and bow-storage interior are not included in the interior-glass schedule.
 - Approximately 50% fibre fraction after wet-out, giving 0.40 kg/m2 laminated mass for one 203 g/m2 dry layer.
 
-The current calculation reports 29.1 kg (64 lb) total: 13.8 kg center, 4.8 kg for each wedge, and 5.8 kg bow. This is an estimate from mesh volume, surface classification, perimeter, infill, and glass schedule; slicer settings and the finished laminate control the real mass.
+The current calculation reports a 29.1 kg (64 lb) total, comprising a 13.8 kg center, two 4.8 kg wedges, and a 5.8 kg bow. The estimate comes from mesh volume, surface classification, perimeter, infill, and glass schedule. Slicer settings and the finished laminate control the real mass.
 
 For a beaching boat, the source recommends a local third 6 oz strip, or graphite/epoxy, along the keel and chines instead of increasing the entire bottom laminate. That local reinforcement is estimated in the comment as about 0.2 kg and is not included in the model. The specified schedule assumes epoxy. The comments explicitly reject the chopped-strand mat in 1708 for epoxy; if changing to polyester or vinylester, restore mat appropriate to that resin system.
 

@@ -10,3 +10,6 @@ __pycache__/
 split_out/
 scratch_baseline/
 *.stl
+
+# Rendered docs (regenerate with ./make_pdf.sh)
+*.pdf
