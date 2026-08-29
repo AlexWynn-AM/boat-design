@@ -1712,6 +1712,53 @@ def make_manifold(m):
     return m32
 
 
+# ------------------------------------------------------------------
+# PRINT ORIENTATION  (scale models only)
+# ------------------------------------------------------------------
+def print_ready_transform(m, tol=0.3, max_slender=2.2, keep=120):
+    """Rotation + drop that stands a piece on whichever face gives the biggest first-layer
+    contact patch, tie-broken against falling over.
+
+    A hull has no flat face, which does not matter for the real boat -- slice_for_print.py
+    cuts it into bed-sized chunks and every chunk gets flat cut faces from the grid -- but
+    a scale model is printed whole and has to sit on something. In the boat's own
+    coordinates nothing does: the foredeck looks flat because BOW_CAMBER is 0, yet it
+    carries the sheer spring, rising 2.5 design inches from the split to the stem. Laid
+    deck-down at 1:10 the bow touches the plate over 2 mm^2 and stands 5 mm off it at the
+    far end. Standing it on the x=BOW_SPLIT face is worse: the three key tongues reach
+    BKEY_DEPTH proud of that plane, so it balances on them.
+
+    Candidate down-directions are the convex hull's face normals, scored by the area that
+    lands within `tol` of the plate. Anything taller than max_slender times its shortest
+    footprint side is skipped as tippy, unless nothing else has any contact at all. The
+    sheer is a curve, not a facet, so the residual is a fraction of a millimetre: use a
+    brim or raft as well."""
+    import trimesh
+    h = m.convex_hull
+    order = np.argsort(-h.area_faces)[:keep]
+    best = (np.eye(4), -1.0, None)
+    fallback = (np.eye(4), -1.0, None)
+    seen = []
+    for d in h.face_normals[order]:
+        if any(float(np.dot(d, e)) > 0.999 for e in seen):
+            continue
+        seen.append(d)
+        T = trimesh.geometry.align_vectors(d, [0.0, 0.0, -1.0])
+        q = m.copy()
+        q.apply_transform(T)
+        T[2, 3] -= q.bounds[0][2]                       # drop it onto z = 0
+        zc, nn, aa = q.triangles_center[:, 2], q.face_normals, q.area_faces
+        area = float(aa[(nn[:, 2] < -0.9) & (zc < q.bounds[0][2] + tol)].sum())
+        ext = q.extents
+        if area > fallback[1]:
+            fallback = (T, area, ext)
+        if ext[2] > max_slender * min(ext[0], ext[1]):  # would print as a tower
+            continue
+        if area > best[1]:
+            best = (T, area, ext)
+    return best if best[1] > 0 else fallback
+
+
 def trim_wedge_mesh(hull, m):
     """Lop WEDGE_TOP_TRIM (real inches) off a wedge's top with a flat cap so it sits
     lower when nested. Cuts at a constant z (relative to the max wedge sheer); the
@@ -3242,6 +3289,16 @@ def main():
         model = real.copy()
         model.apply_scale(25.4 / args.scale)   # 1:scale mm model of the real boat
         model.export(str(out / f"{name}_1to{args.scale:.0f}_mm.stl"))
+        # ...and the same model stood on its best face, ready to slice (see
+        # print_ready_transform: in boat coordinates none of these pieces sits flat)
+        pr = out / "print_ready"
+        pr.mkdir(exist_ok=True)
+        T, area, ext = print_ready_transform(model)
+        flat = model.copy()
+        flat.apply_transform(T)
+        flat.export(str(pr / f"{name}_1to{args.scale:.0f}_mm.stl"))
+        print(f"    print-ready: {area:6.0f} mm^2 on the plate, "
+              f"{ext[0]:.0f} x {ext[1]:.0f} x {ext[2]:.0f} mm")
 
     print(f"\n  All pieces watertight (after drilling): {all_wt}"
           f"  (bow is hollow w/ a dome storage opening)")
