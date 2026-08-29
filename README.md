@@ -127,3 +127,7 @@ These defaults are defined in the constants block at the top of [`dinghy_split.p
 | `PERIM_SHELL`, `INFILL` | 0.5 mm; 12% | ASA mass-model and print assumptions |
 
 Engineering details and verification logic are described in [DESIGN.md](DESIGN.md).
+
+## Author
+
+Alex Wynn, [MIT Center for Bits and Atoms](https://cba.mit.edu) and [Adiabatic Machines](https://adiabaticmachines.com). The boat is a personal project and is not the work of either organisation.
