@@ -130,4 +130,4 @@ Engineering details and verification logic are described in [DESIGN.md](DESIGN.m
 
 ## Author
 
-Alex Wynn, [MIT Center for Bits and Atoms](https://cba.mit.edu) and [Adiabatic Machines](https://adiabaticmachines.com). The boat is a personal project and is not the work of either organisation.
+Alex Wynn, [MIT Center for Bits and Atoms](https://cba.mit.edu/people/awynn) and [Adiabatic Machines](https://adiabaticmachines.com/team/). The boat is a personal project and is not the work of either organisation.
