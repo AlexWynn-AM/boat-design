@@ -35,6 +35,11 @@ BED = (256.0, 256.0, 256.0)   # printer bed X,Y,Z (mm)  -- Bambu X1C default
 MARGIN = 8.0                  # mm clearance each side (-> usable = BED-2*MARGIN)
 DOWEL_DIA = 4.0               # mm printed ASA dowel diameter (fits ~7mm walls)
 DOWEL_CLEAR = 0.2             # mm added to the HOLE (dia+clear) for epoxy fit
+DOWEL_SHRINK = 0.0            # mm off the PRINTED DOWEL only, never the hole. This is the
+                              # fit knob: the dowel is the cheap half of the joint (~50 g
+                              # and a few hours for all 784), so tune the fit by reprinting
+                              # dowels rather than by reopening holes in 149 chunks.
+                              # Raise it if they bind, and reprint 000_dowel.stl alone.
 DOWEL_DEPTH = 6.0             # mm hole depth into EACH side of a cut
 DOWELS_PER_FACE = 3           # dowels per shared cut face (fewer if the face is small)
 MIN_CHUNK_IN3 = 0.06          # drop chunks below ~1 cm^3 of material
@@ -235,9 +240,11 @@ ORDER
   manifest.csv in the folder above names which chunks each one mates to.
 
 DOWELS
-  Holes are 4.2 mm for the 4.0 mm printed dowels, 6 mm deep each side.
+  Holes are {hole:.1f} mm for {dow:.1f} mm printed dowels, 6 mm deep each side.
   Dry-fit before glue. Abrade and solvent-wipe the faces: the ASA to epoxy
   bond is the least forgiving joint on the boat.
+  If they bind, do NOT open the holes: that obsoletes every chunk. Raise
+  DOWEL_SHRINK in slice_for_print.py and reprint 000_dowel.stl on its own.
 
 FLOW  --  {flow:.0f} mm3/s at {temp} C, measured on this machine
   Set from a real print, not a catalogue. For reference, Bambu ship 18 for
@@ -267,11 +274,12 @@ def write_profile(out, name, title, lo, hi, n, dowels, kg, infill, extra="", pre
     (out / name / "PROFILE.txt").write_text(PROFILE.format(
         title=title, rule="=" * len(title), n=n, lo=lo, hi=hi, dowels=dowels,
         kg=kg, h4=h4, h6=h4 * FLOW / FLOW_MAX, flow=FLOW, flowmax=FLOW_MAX, temp=TEMP,
+        hole=DOWEL_DIA + DOWEL_CLEAR, dow=DOWEL_DIA - DOWEL_SHRINK,
         infill=infill, extra=extra, preset=preset))
 
 
 def make_dowel(out):
-    r = DOWEL_DIA / 2.0 * MM
+    r = (DOWEL_DIA - DOWEL_SHRINK) / 2.0 * MM
     L = (2.2 * DOWEL_DEPTH) * MM
     c = trimesh.creation.cylinder(radius=r, height=L, sections=24)
     # lead-in chamfers: intersect with a double-cone-ish; simple: slice tiny cones off ends
