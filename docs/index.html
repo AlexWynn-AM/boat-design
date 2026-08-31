@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parametric split dinghy</title>
+<meta name="description" content="A parametric 8 ft planing dinghy generated as four car-transportable pieces, printed in ASA as a fiberglass core.">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛵</text></svg>">
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="brand" href="./">Split dinghy</a>
+    <nav>
+      <a href="#split">Split</a>
+      <a href="#joint">Joint</a>
+      <a href="#print">Printing</a>
+      <a href="#spec">Specification</a>
+      <a href="design.html">Engineering</a>
+      <a href="reference.html">Reference</a>
+      <a href="https://github.com/AlexWynn-AM/boat-design">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Parametric hull generator</p>
+    <h1>A dinghy that comes apart to fit in a car</h1>
+    <p>Eight feet of planing hull, generated as four watertight pieces that bolt together
+       through drop-in dovetail keys. Printed in ASA as a light core, then fiberglassed.
+       Every dimension on this page comes out of the geometry.</p>
+    <div class="hero-art"><img src="assets/hero.png" alt="The assembled hull, starboard bow quarter" width="1000"></div>
+    <div class="hero-meta">
+      <span>97.2 in LOA</span><span>61 in beam</span><span>4 pieces</span>
+      <span>149 printed chunks</span><span>64 lb modelled</span>
+    </div>
+  </div>
+</div>
+
+<section id="what">
+  <div class="wrap">
+    <p class="eyebrow">What this is</p>
+    <h2>One command builds the whole boat</h2>
+    <div class="prose">
+      <p class="lede">This repository is a generator, not a set of drawings. <code>dinghy_split.py</code>
+      builds the hull lines, cuts the four pieces, hollows the bow, adds the dovetail keys, drills the
+      bolt holes, verifies every mesh, and exports full-size and scale-model STLs.</p>
+      <p>Because the boat is parametric, the design constraints are readable as constants. The centre
+      barge is 42 inches wide because that was the width that fits a car, and every other dimension
+      follows from that decision rather than being drawn around it.</p>
+    </div>
+    <div class="cards">
+      <div class="card"><span class="num">4</span><h3>Transportable pieces</h3>
+        <p>A centre barge, two sealed wedge pods, and a hollow bow that nests inside the cockpit.</p></div>
+      <div class="card"><span class="num">16</span><h3>Bolts, all above the waterline</h3>
+        <p>Twelve wedge-to-centre and four bow-to-centre. Nothing structural sits below the water.</p></div>
+      <div class="card"><span class="num">784</span><h3>Printed alignment dowels</h3>
+        <p>Every cut face carries them, so a chunk can only go back together one way.</p></div>
+      <div class="card"><span class="num">0.71 in</span><h3>Bow nesting clearance</h3>
+        <p>The bow drops into the centre cockpit for transport, with that much room at its tightest.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="split">
+  <div class="wrap">
+    <p class="eyebrow">The split</p>
+    <h2>Four pieces, each watertight on its own</h2>
+    <div class="split">
+      <div class="col-text prose">
+        <p>The pieces share the <code>y = ±21 in</code> vertical planes and a single interface station
+        at <code>x = 60 in</code> design. Each one closes as an independent manifold, so a failure in
+        one piece cannot open another.</p>
+        <p>The centre barge is a usable floating tub by itself. The wedges carry the original outboard
+        bottom, spray rail, and gunwale, which is what lets the stern stay wide while the load stays
+        narrow. Growing the wedges widens the transom without changing what travels.</p>
+        <p>For transport the bow drops into the cockpit and the two wedges flip together into one
+        bundle. The wedges travel separately: placed beside the centre they would restore the full
+        61 in beam whichever way round they go.</p>
+      </div>
+      <figure>
+        <img src="assets/four_pieces.png" alt="The four pieces pulled apart: centre barge, bow, and two wedge pods" width="876">
+        <figcaption>Centre barge (blue), bow (teal), and the port and starboard wedge pods.</figcaption>
+      </figure>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Piece</th><th>Size, real</th><th>Modelled mass</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td><code>center</code></td><td>54.0 × 41.4 × 21.9 in</td><td>13.8 kg</td>
+              <td>Open barge from transom to split. Floats and carries load on its own.</td></tr>
+          <tr><td><code>wedge_stbd</code></td><td>53.8 × 11.7 × 19.0 in</td><td>4.8 kg</td>
+              <td>Sealed buoyancy pod carrying the outer skin and beam.</td></tr>
+          <tr><td><code>wedge_port</code></td><td>53.8 × 11.7 × 19.0 in</td><td>4.8 kg</td>
+              <td>Mirror of the starboard pod.</td></tr>
+          <tr><td><code>bow</code></td><td>43.9 × 37.8 × 22.8 in</td><td>5.8 kg</td>
+              <td>Hollow nose with a domed aft storage opening.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><p><strong>The bow is storage, not buoyancy.</strong> Its mesh is a clean
+    manifold like a cup, but the storage mouth opens into the cockpit, so it floods if the boat is
+    swamped. A sealable hatch is the alternative if that trade is ever revisited.</p></div>
+  </div>
+</section>
+
+<section id="joint">
+  <div class="wrap">
+    <p class="eyebrow">The joint</p>
+    <h2>Everything assembles straight down</h2>
+    <div class="split text-right">
+      <div class="col-text prose">
+        <p>Each wedge carries three vertical drop-in keys. The flare faces sideways toward the pod, so
+        the key slides down into its socket and then resists the pod pulling away. Two bolts at each
+        key stop it lifting back out.</p>
+        <p>The bow uses the same idea rotated ninety degrees: three keys in its aft face, one low on
+        the centreline inside the solid bottom bulkhead and one on each side. The keys stop forward
+        separation and four bolts stop lift.</p>
+        <p>Sockets are grown by a <strong>2.0 mm real gap on every mating face</strong>. That sounds
+        loose until the glass is counted: both mating walls are exterior surfaces, both take 6 oz
+        cloth, and that alone consumed the original 0.6 mm. Tongues take cloth; sockets take neat
+        epoxy, because cloth only bridges a deep flared slot and traps air behind itself.</p>
+      </div>
+      <figure>
+        <img src="assets/joint.png" alt="A wedge pod lifted vertically off the centre barge, showing three dovetail keys and their sockets" width="872">
+        <figcaption>A wedge lifted clear, showing the three keys and the sockets they drop into.</figcaption>
+      </figure>
+    </div>
+    <div class="note"><p><strong>Loose is nearly free.</strong> The bolts do the clamping and the keys
+    only capture the geometry, so clearance costs capture margin rather than strength. At 2.0 mm the
+    remaining capture is 9.4 mm on the wedge keys and 5.5 mm on the smallest bow key. Do not scale
+    this gap up for a scale model: the undercut shrinks with the model and a gap wider than the
+    undercut lets the key lift straight out.</p></div>
+  </div>
+</section>
+
+<section id="print">
+  <div class="wrap">
+    <p class="eyebrow">Printing it</p>
+    <h2>149 chunks, none longer than six hours</h2>
+    <div class="split">
+      <div class="col-text prose">
+        <p>No piece fits a printer, so <code>slice_for_print.py</code> cuts each one on an
+        axis-aligned grid sized to the bed, with 8 mm of margin, and drills printed ASA dowel holes
+        into every shared face. The chunks are numbered in print order, bottom layer first, so a chunk
+        only ever bonds to neighbours that already exist.</p>
+        <p>Cut faces are flat, which matters more than it sounds. <code>orient_chunks.py</code> stands
+        every chunk on whichever of its six cut faces prints best, taking support across the whole
+        boat from <strong>29,604 cm² to 771 cm²</strong>. Printed as cut, support would have consumed
+        more ASA than the boat.</p>
+        <p>The whole hull is roughly 280 printer-hours at the profile's 20 mm³/s volumetric cap. The
+        longest single chunk is 6.1 hours and the median is 1.8, so nothing needs babysitting and a
+        machine that fails costs one chunk.</p>
+      </div>
+      <figure>
+        <img src="assets/bow_chunks.png" alt="The bow exploded along its cutting grid into 44 printable chunks" width="975">
+        <figcaption>The bow alone, exploded along the grid it is cut on: 44 chunks, 232 dowels.</figcaption>
+      </figure>
+    </div>
+    <div class="stats">
+      <div class="stat"><span class="num">256 mm</span><span class="lbl">Cube bed the grid is sized to</span></div>
+      <div class="stat"><span class="num">6.1 h</span><span class="lbl">Longest single chunk</span></div>
+      <div class="stat"><span class="num">97%</span><span class="lbl">Support removed by orientation</span></div>
+      <div class="stat"><span class="num">4.0 mm</span><span class="lbl">Dowels, in 4.2 mm holes</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="spec">
+  <div class="wrap">
+    <p class="eyebrow">Build specification</p>
+    <h2>The print is the core. The glass is the structure.</h2>
+    <div class="prose">
+      <p class="lede">A single 0.5 mm perimeter over sparse gyroid weeps through its own layer lines.
+      The printed shell exists to hold shape and act as a sandwich core; the laminate carries the
+      load.</p>
+      <p>Wall targets are 7 mm for sides, topsides, decks and shells, and 14 mm for the centre cockpit
+      sole, which is the wide unsupported panel that oil-cans on the plywood boat this replaces.
+      Gyroid is specified rather than grid because the core's job is shear.</p>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Surface</th><th>Laminate</th><th>Areal mass</th></tr></thead>
+        <tbody>
+          <tr><td>Exterior bottom</td><td>Two layers 6 oz plain weave, second at 45°</td><td>0.8 kg/m²</td></tr>
+          <tr><td>Exterior topsides and deck</td><td>One layer 6 oz plain weave</td><td>0.4 kg/m²</td></tr>
+          <tr><td>Centre cockpit interior</td><td>One layer 6 oz plain weave</td><td>0.4 kg/m²</td></tr>
+          <tr><td>Sealed wedge and bow interiors</td><td>Bare</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">One fabric covers the whole boat, chosen for wet-out and for drape over printed
+    layer lines. For a beaching boat the recommendation is a local third strip or graphite along the
+    keel and chines rather than a heavier laminate everywhere. The schedule assumes epoxy: the mat in
+    1708 is a polyester feature and does nothing for an epoxy layup.</p>
+    <div class="note"><p><strong>The ASA-to-epoxy bond is the least forgiving joint on the boat.</strong>
+    Abrade, solvent-wipe, and key every surface that will be glassed.</p></div>
+  </div>
+</section>
+
+<section id="start">
+  <div class="wrap">
+    <p class="eyebrow">Getting started</p>
+    <h2>Generate it yourself</h2>
+    <div class="prose">
+      <p>Dependencies are not pinned. <code>manifold3d</code> supplies the boolean operations,
+      <code>pymeshfix</code> is the repair fallback, and <code>rtree</code> backs the spatial queries
+      that place dowels.</p>
+    </div>
+<pre><code>git clone https://github.com/AlexWynn-AM/boat-design
+cd boat-design
+uv venv
+uv pip install numpy trimesh matplotlib manifold3d pymeshfix rtree
+
+.venv/bin/python dinghy_split.py        # four pieces + STLs + renders
+.venv/bin/python slice_for_print.py     # cut them into bed-sized chunks
+.venv/bin/python orient_chunks.py       # stand each chunk on its best cut face</code></pre>
+    <div class="prose">
+      <p>Every run re-verifies the geometry: watertightness at design and export scale, the bow
+      drop-in sweep, the buoyancy-pod seal, and the height of every bolt above the derived waterline.
+      The <a href="design.html">engineering notes</a> describe what each check is for and why it
+      exists, and the <a href="reference.html">reference</a> covers parameters and outputs.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Alex Wynn, <a href="https://cba.mit.edu/people/awynn">MIT Center for Bits and Atoms</a>
+      and <a href="https://adiabaticmachines.com/team/">Adiabatic Machines</a>.
+      A personal project, not the work of either organisation.</span>
+    <span class="spacer"></span>
+    <a href="https://github.com/AlexWynn-AM/boat-design">Source on GitHub</a>
+  </div>
+</footer>
+
+</body>
+</html>
