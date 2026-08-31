@@ -8,30 +8,80 @@ Output: split_out/print_sections/  (numbered chunk STLs, dowel.stl, manifest.csv
         Chunks are written in MILLIMETRES: STL carries no units and slicers assume
         mm, so exporting the inch geometry directly imports at 1/25.4 size.
 
-Run:   .venv/bin/python slice_for_print.py            # X1C 256^3
-       BED / PIECES overridable via the params below.
+Run:   .venv/bin/python slice_for_print.py                      # Bambu X1C, 256^3
+       .venv/bin/python slice_for_print.py --printer coreone   # Prusa Core One
+       PRINTERS / PIECES overridable via the params below.
 """
-import numpy as np, trimesh, csv, sys
+import numpy as np, trimesh, csv, argparse
 from pathlib import Path
 import json
 import dinghy_split as ds          # print constants live there; keep one copy of each
 
-# Speed is set by the filament's volumetric cap, not the nozzle: with a 0.4 nozzle and no
-# 0.6 to swap to, the cap IS the only lever. Read it from the saved preset so the time
-# estimates in every PROFILE.txt track the profile actually being run.
-try:
-    _fil = json.load(open("print_profiles/bambu/boatASA_filament.json"))
-    FLOW = float(_fil["filament_max_volumetric_speed"][0])
-except Exception:
-    FLOW = 16.0
-FLOW_MAX = 20.0                # headroom before a 0.4 hotend starts under-extruding
-try:
-    TEMP = int(float(_fil["nozzle_temperature"][0]))
-except Exception:
-    TEMP = 275
+# ---- printers ----
+# The bed drives the chunk grid, so changing printer re-cuts the whole boat: the two
+# targets share no chunk files and each gets its own output directory. Everything else
+# that differs between them lives here too, because a piece's PROFILE.txt is meant to be
+# read at the machine, with neither this file nor the presets README to hand.
+PRINTERS = {
+    "x1c": dict(
+        label="Bambu Lab X1C",
+        bed=(256.0, 256.0, 256.0),
+        outdir="print_sections_x1c",
+        presets="print_profiles/bambu",
+        filament="print_profiles/bambu/boatASA_filament.json",
+        preset12="boatASA-12", preset8="boatASA-8",
+        flow_default=16.0, temp_default=275, flow_max=20.0,
+        printer_line="X1C, and it must be ENCLOSED. ASA warps and splits in open air.",
+        nozzle_line=("0.4. With no 0.6 to swap to, the volumetric cap below is the\n"
+                     "               only speed lever on this job."),
+        layer_line="0.24 mm.",
+        bed_line="ENCLOSURE DOOR SHUT and chamber warm before the first layer.",
+        flow_note=(
+  "  Not print-tested yet: run the max volumetric speed calibration at {temp} C\n"
+  "  before committing to it. For reference, Bambu ship 18 for their own ASA on\n"
+  "  an X1C with a 0.4 nozzle and 18 at 275 C for ASA-CF; Generic ASA sits at 12\n"
+  "  only because the filament is unknown. {flow:.0f} is above their figure, so it needs\n"
+  "  the test rather than the catalogue behind it.\n"
+  "\n"
+  "  It governs the whole job. This process asks for 24 mm3/s on outer walls\n"
+  "  and 27.6 on inner walls and infill, so the cap throttles every one of\n"
+  "  those moves:"),
+    ),
+    "coreone": dict(
+        label="Prusa Core One",
+        bed=(250.0, 220.0, 270.0),
+        outdir="print_sections_coreone",
+        presets="print_profiles/prusa",
+        filament="print_profiles/prusa/boatASA.ini",
+        preset12="boatASA-12", preset8="boatASA-8",
+        flow_default=16.0, temp_default=275, flow_max=24.0,
+        printer_line=("Core One. It is enclosed as shipped, which is what ASA needs;\n"
+                      "               keep the door and the top lid on for every chunk."),
+        nozzle_line=("0.4 high-flow, as shipped. Unlike the X1C this machine takes a\n"
+                     "               0.6 HF nozzle in a two-minute swap, and that is the one\n"
+                     "               change that roughly halves the 400-plus hours. Take it\n"
+                     "               unless you need the 0.4 surface, which on a glassed core\n"
+                     "               you do not."),
+        layer_line="0.25 mm with the 0.4 nozzle, 0.32 mm if you fit the 0.6.",
+        bed_line=("smooth or textured PEI, 105 C. ASA grips smooth PEI hard, so use a\n"
+                  "               separator on it, or print on textured and accept the finish:\n"
+                  "               these faces get abraded for epoxy anyway."),
+        flow_note=(
+  "  This figure was carried over from the Bambu profile and has been tested on\n"
+  "  neither machine. Treat it as a starting point. The Core One's high-flow\n"
+  "  hotend has more headroom than the X1C's stock one, so the calibration is\n"
+  "  worth running properly: it takes 20 minutes against a job of this length,\n"
+  "  and the cap governs every move in the profile.\n"
+  "\n"
+  "  Fitting a 0.6 HF nozzle moves more than the cap does: roughly double the\n"
+  "  flow, and a single wall laid at about 0.68 mm instead of 0.50, which bonds\n"
+  "  better and costs about 3 kg of ASA over the whole boat:"),
+    ),
+}
+PRINTER = "x1c"                # default target; --printer selects another
 
 # ---- params ----
-BED = (256.0, 256.0, 256.0)   # printer bed X,Y,Z (mm)  -- Bambu X1C default
+BED = PRINTERS[PRINTER]["bed"]  # printer bed X,Y,Z (mm); set from PRINTERS in main()
 MARGIN = 8.0                  # mm clearance each side (-> usable = BED-2*MARGIN)
 DOWEL_DIA = 4.0               # mm printed ASA dowel diameter (fits ~7mm walls)
 DOWEL_CLEAR = 0.2             # mm added to the HOLE (dia+clear) for epoxy fit
@@ -47,7 +97,8 @@ MIN_CHUNK_IN3 = 0.06          # drop chunks below ~1 cm^3 of material
 # what gets printed first; within a piece they run bottom layer up, then raster in x
 # and y, which is also the order you bond them in.
 PIECES = ["bow", "center", "wedge_stbd", "wedge_port"]
-OUTDIR = "print_sections"
+OUTDIR = PRINTERS[PRINTER]["outdir"]      # per printer: the grid differs, so the files do
+FLOW = FLOW_MAX = TEMP = None             # from the saved filament preset; set in main()
 WL = None                     # real-scale waterline; set in main(). Chunks reaching below
                               # it get the denser infill (slam, beaching, wide shallow V).
 
@@ -215,15 +266,14 @@ PROFILE = """{title}
 Print time roughly {h4:.0f} h at the profile's {flow:.0f} mm3/s cap.
 
 SETTINGS
-  Printer      X1C, and it must be ENCLOSED. ASA warps and splits in open air.
+  Printer      {printer_line}
   Filament     boatASA: {temp} C, {flow:.0f} mm3/s cap. Stock Generic ASA is 260 C
-               and 12 mm3/s, so this is already the boosted profile.
-  Nozzle       0.4. With no 0.6 to swap to, the volumetric cap below is the
-               only speed lever on this job.
-  Preset       {preset}   (print_profiles/bambu/ in the repo)
-  Layer        0.24 mm.
+               and slower, so this is already the boosted profile.
+  Nozzle       {nozzle_line}
+  Preset       {preset}   ({presets}/ in the repo)
+  Layer        {layer_line}
   Units        the STLs are in mm. Import at 100%, do not rescale.
-  Bed          ENCLOSURE DOOR SHUT and chamber warm before the first layer.
+  Bed          {bed_line}
   Walls        1 perimeter at 0.5 mm extrusion width. The print is a glass
                substrate, not a finish surface, so one clean wall is enough.
   INFILL       {infill}
@@ -246,18 +296,10 @@ DOWELS
   If they bind, do NOT open the holes: that obsoletes every chunk. Raise
   DOWEL_SHRINK in slice_for_print.py and reprint 000_dowel.stl on its own.
 
-FLOW  --  {flow:.0f} mm3/s at {temp} C, measured on this machine
-  Set from a real print, not a catalogue. For reference, Bambu ship 18 for
-  their own ASA on an X1C with a 0.4 nozzle and 18 at 275 C for ASA-CF;
-  Generic ASA sits at 12 only because the filament is unknown. {flow:.0f} is above
-  their figure and matches what they ship for the H2S high-flow hotend, so
-  it rests on the test rather than on the catalogue.
+FLOW  --  {flow:.0f} mm3/s at {temp} C
+{flownote}
 
-  It governs the whole job. This process asks for 24 mm3/s on outer walls
-  and 27.6 on inner walls and infill, so the cap throttles every one of
-  those moves:
-
-        12 mm3/s   446 h        16 mm3/s   334 h        20 mm3/s   267 h
+{table}
 
   KEEP LOOKING AS THE PARTS GET BIGGER. Under-extrusion does not fail
   loudly: it thins every wall slightly, and on a one-perimeter print the
@@ -269,11 +311,37 @@ FLOW  --  {flow:.0f} mm3/s at {temp} C, measured on this machine
 {extra}"""
 
 
+def read_preset(P):
+    """Cap and nozzle temperature out of the saved filament preset, so the time estimates
+    in every PROFILE.txt track the profile actually being run. Bambu presets are JSON with
+    every value in a list; PrusaSlicer presets are flat key = value ini."""
+    f = Path(P["filament"])
+    try:
+        if f.suffix == ".json":
+            d = json.load(open(f))
+            return (float(d["filament_max_volumetric_speed"][0]),
+                    int(float(d["nozzle_temperature"][0])))
+        kv = {}
+        for line in f.read_text().splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                k, v = line.split("=", 1); kv[k.strip()] = v.strip()
+        return float(kv["filament_max_volumetric_speed"]), int(float(kv["temperature"]))
+    except Exception:
+        return P["flow_default"], P["temp_default"]
+
+
 def write_profile(out, name, title, lo, hi, n, dowels, kg, infill, extra="", preset=""):
-    h4 = kg * 1e6 / ds.ASA_DENSITY / FLOW / 3600.0
+    P = PRINTERS[PRINTER]
+    hours = lambda f: kg * 1e6 / ds.ASA_DENSITY / f / 3600.0
+    caps = sorted({12.0, FLOW, FLOW_MAX})
+    table = ("        " + "        ".join(f"{f:.0f} mm3/s   {hours(f):.0f} h" for f in caps)
+             + "\n        (hours for this folder, not for the whole boat)")
     (out / name / "PROFILE.txt").write_text(PROFILE.format(
         title=title, rule="=" * len(title), n=n, lo=lo, hi=hi, dowels=dowels,
-        kg=kg, h4=h4, h6=h4 * FLOW / FLOW_MAX, flow=FLOW, flowmax=FLOW_MAX, temp=TEMP,
+        kg=kg, h4=hours(FLOW), flow=FLOW, flowmax=FLOW_MAX, temp=TEMP, table=table,
+        flownote=P["flow_note"].format(flow=FLOW, temp=TEMP),
+        printer_line=P["printer_line"], nozzle_line=P["nozzle_line"],
+        layer_line=P["layer_line"], bed_line=P["bed_line"], presets=P["presets"],
         hole=DOWEL_DIA + DOWEL_CLEAR, dow=DOWEL_DIA - DOWEL_SHRINK,
         infill=infill, extra=extra, preset=preset))
 
@@ -310,9 +378,25 @@ EXTRA = {
  "center": "\nThe center is the flexible one. Its bottom is a 42 inch wide shallow V and\n"
            "its sole spans the full beam, so nothing in the shape stiffens them. That is\n"
            "what the denser core and the 14 mm sole are both for.\n",
- "wedge_port": "\nWatch #134: it is 240.7 mm on its longest side against a 240 mm usable\n"
-               "envelope. It fits, but with no room for skirt. Plate that one first.\n",
 }
+
+
+def tight_note(rows):
+    """Name the chunk with the least room on the plate. A chunk can be turned on the bed,
+    so the test is its sorted bounding box against the sorted usable envelope, not axis
+    for axis. Worth printing first: if anything is going to foul the skirt, know early."""
+    env = sorted(b - 2 * MARGIN for b in BED)
+    worst, slack = None, 1e9
+    for r in rows:
+        d = sorted(float(v) for v in r[4].split("x"))
+        sl = min(e - v for e, v in zip(env, d))
+        if sl < slack:
+            worst, slack = r, sl
+    if worst is None or slack > 6.0:
+        return ""
+    return (f"\nTightest on the plate is #{worst[0]}: {worst[4]} mm against a "
+            f"{env[2]:.0f}x{env[1]:.0f}x{env[0]:.0f} mm usable\nenvelope, about {slack:.0f} mm of "
+            f"room at its worst axis (the manifest rounds to whole mm).\nPlate that one first.\n")
 
 
 def verify_exports(out, log):
@@ -350,10 +434,22 @@ def verify_exports(out, log):
 
 
 def main():
-    global WL
+    global WL, PRINTER, BED, OUTDIR, FLOW, FLOW_MAX, TEMP
+    ap = argparse.ArgumentParser(
+        description="Cut the full-size boat pieces into printer-bed-sized sections.")
+    ap.add_argument("outdir", nargs="?", default=None,
+                    help="subdirectory under split_out/ (default: the printer's own)")
+    ap.add_argument("--printer", default=PRINTER, choices=sorted(PRINTERS),
+                    help="target printer; the bed size re-cuts every chunk")
+    args = ap.parse_args()
+    PRINTER = args.printer
+    P = PRINTERS[PRINTER]
+    BED, OUTDIR = P["bed"], (args.outdir or P["outdir"])
+    FLOW, TEMP = read_preset(P)
+    FLOW_MAX = P["flow_max"]
     _h = ds.DinghyHull()
     WL = ds.set_waterline_from_load(_h) * ds.DESIGN_SCALE
-    out = Path("split_out") / (OUTDIR if len(sys.argv) < 2 else sys.argv[1])
+    out = Path("split_out") / OUTDIR
     out.mkdir(parents=True, exist_ok=True)
     for old in (list(out.glob("*.stl")) + list(out.glob("manifest.csv"))
                 + list(out.glob("*/*.stl")) + list(out.glob("*/PROFILE.txt"))):
@@ -362,8 +458,9 @@ def main():
         (out / name).mkdir(exist_ok=True)
     lines = []
     log = lambda s: (print(s), lines.append(s))
-    print(f"Slicing for bed {BED[0]:.0f}x{BED[1]:.0f}x{BED[2]:.0f}mm "
-          f"(usable {(BED[0]-2*MARGIN):.0f}mm), dowel {DOWEL_DIA}mm")
+    print(f"Slicing for {P['label']}: bed {BED[0]:.0f}x{BED[1]:.0f}x{BED[2]:.0f}mm "
+          f"(usable {BED[0]-2*MARGIN:.0f}x{BED[1]-2*MARGIN:.0f}x{BED[2]-2*MARGIN:.0f}mm), "
+          f"dowel {DOWEL_DIA}mm -> split_out/{OUTDIR}/")
     allrows, total_dowels = [], 0
     for name in PIECES:
         p = Path("split_out") / f"{name}.stl"
@@ -389,12 +486,12 @@ def main():
                    f"{ds.INFILL_TOPSIDE:.0%} for #{max(low)+1:03d}..#{hi:03d}.\n"
                    f"               The split is the waterline: everything reaching below it\n"
                    f"               takes slamming and beaching loads.")
-        preset = ("boatASA-12 for the 12% chunks, boatASA-8 for the rest"
+        preset = (f"{P['preset12']} for the {ds.INFILL:.0%} chunks, {P['preset8']} for the rest"
                   if low and len(low) != len(rows) else
-                  ("boatASA-12" if low else "boatASA-8"))
+                  (P["preset12"] if low else P["preset8"]))
         write_profile(out, name, TITLES.get(name, name.upper()), f"#{seq0:03d}",
-                      f"#{hi:03d}", len(rows), dw, kg, inf, EXTRA.get(name, ""),
-                      preset=preset)
+                      f"#{hi:03d}", len(rows), dw, kg, inf,
+                      EXTRA.get(name, "") + tight_note(rows), preset=preset)
     make_dowel(out)
     verify_exports(out, log)
     with open(out / "manifest.csv", "w", newline="") as f:

@@ -80,13 +80,24 @@ Two optional post-processors use the default `split_out/` path:
 
 `render_explainers.py` writes `dovetail_clean.png` and `packing_clean.png`.
 
-`slice_for_print.py` reads the four full-size inch STLs and divides them for a 256 x 256 x 256 mm printer, using an 8 mm margin. It writes numbered chunk STLs, `dowel.stl`, and `manifest.csv` under `split_out/print_sections/`. A positional argument changes only the subdirectory name:
+`slice_for_print.py` reads the four full-size inch STLs and divides them into bed-sized chunks, using an 8 mm margin on every side. It writes numbered chunk STLs in millimetres, `000_dowel.stl`, a `PROFILE.txt` per piece, and `manifest.csv`.
+
+`--printer` selects the target. The bed size sets the cutting grid, so each printer gets its own output directory and the two chunk sets are **not interchangeable** — a chunk from one has its dowels in places the other's neighbours do not:
+
+| target | bed | output |
+| --- | --- | --- |
+| `x1c` (default) | 256 x 256 x 256 mm | `split_out/print_sections_x1c/` |
+| `coreone` | 250 x 220 x 270 mm | `split_out/print_sections_coreone/` |
+
+Pick one target per boat and stay on it. A second machine does not need a second cut: the Core One's usable plate is 234 x 204 mm against the X1C's 234 x 234, so only the short axis differs and most X1C chunks fit it as they are. `split_out/print_sections_x1c/bow_prusa/` is that subset for the bow of the boat currently being printed, already placed for the smaller plate, with a `PLACEMENT.txt` recording which chunks were rotated and which eight do not fit at all. Feed a second printer from there rather than re-cutting.
 
 ```sh
-.venv/bin/python slice_for_print.py my_sections
+.venv/bin/python slice_for_print.py                      # Bambu X1C
+.venv/bin/python slice_for_print.py --printer coreone    # Prusa Core One
+.venv/bin/python slice_for_print.py --printer coreone my_sections
 ```
 
-Printer dimensions and slicing parameters are constants at the top of `slice_for_print.py`, not CLI options. The current cutter uses 4.0 mm ASA dowels, adds 0.2 mm to the hole diameter, drills 6.0 mm into each side of a cut, and requests up to three dowels per shared face. It clears stale STL and manifest files from the selected sections directory before writing a new set.
+A positional argument overrides only the subdirectory name. Slicer presets for both machines are in `print_profiles/`, and each piece's `PROFILE.txt` names the preset, infill split, and print order for that folder. The remaining slicing parameters are constants at the top of `slice_for_print.py`, not CLI options. The current cutter uses 4.0 mm ASA dowels, adds 0.2 mm to the hole diameter, drills 6.0 mm into each side of a cut, and requests up to three dowels per shared face. It clears stale STL and manifest files from the selected sections directory before writing a new set.
 
 ## Print and fiberglass specification
 
