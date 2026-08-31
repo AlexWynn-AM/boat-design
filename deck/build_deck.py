@@ -132,8 +132,9 @@ tb(s, 0.9, 4.62, 6.6, 1.4,
    "Six machines and a working day gets the other thirty-four.",
    16, False, DIM, DISP, line=1.35)
 pic(s, "bow_chunks.png", 7.9, 4.0, w=4.7)
-tb(s, 0.9, 6.86, 9, 0.3, "ASA over gyroid, fiberglassed after   ·   rev-3.4", 9,
-   False, RGBColor(0x55,0x5C,0x64), MONO, caps=True, space=1.2)
+tb(s, 0.9, 6.86, 11.4, 0.3,
+   "ASA over gyroid, fiberglassed after   ·   rev-3.4   ·   alexwynn-am.github.io/boat-design",
+   9, False, RGBColor(0x55,0x5C,0x64), MONO, caps=True, space=1.2)
 
 # ---------------------------------------------------------------- 02 the boat
 s = slide(); head(s, "Context", "The boat the bow belongs to")
@@ -302,10 +303,12 @@ s = slide(dark=True)
 rule(s, 0.9, 2.35, 1.05, ACC, 0.06)
 tb(s, 0.86, 2.72, 11.6, 1.8, "Take a chunk.\nBring it back bonded.", 52, True,
    PAPER, DISP, line=0.98)
-tb(s, 0.9, 4.85, 6.8, 1.3,
+tb(s, 0.9, 4.72, 6.8, 1.3,
    "Forty-four chunks, 232 dowels, one bow. manifest.csv says which chunk mates to which, "
    "and PROFILE.txt in the bow folder says how to print all of it.",
    15, False, DIM, DISP, line=1.4)
+rule(s, 0.9, 5.95, 0.62)
+tb(s, 0.9, 6.16, 9.0, 0.45, "alexwynn-am.github.io/boat-design", 22, True, ACC, DISP)
 tb(s, 0.9, 6.86, 10, 0.3,
    "000_DOWEL.STL FIRST   ·   THEN #011 UPWARD   ·   BRIM EVERYTHING",
    9, False, RGBColor(0x55,0x5C,0x64), MONO, caps=True, space=1.2)
