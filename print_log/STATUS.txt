@@ -1,0 +1,429 @@
+BOW BUILD STATUS
+================
+Last updated 2026-09-01 (evening). Keep this file honest -- it is the only record of what
+physically exists, and the chunks all look alike.
+
+
+AS OF NOW
+---------
+  #001     IN HAND -- PRINTED AND CONFIRMED 2026-09-01 on the 0.6 Core One,
+           off the 0.6 stick. THE DUPLICATE IS RESOLVED: #001 now exists, so
+           the two identical #004s can be sorted -- hold #001 against them,
+           it must be a MIRROR of both and they must match each other.
+  #002     IN HAND at CBA.  Its twin is #003.
+  #003     IN HAND -- CONFIRMED 2026-09-01. Twin of #002; do the pair check.
+  #004     IN HAND -- and there are TWO of them. See THE DUPLICATE below.
+  #005     IN HAND at CBA
+  #006     PRINTED AND CONFIRMED 2026-09-01, home X1C, SUPPORTS OFF.
+           LABEL IT NOW. It is 148 x 240 x 223 / 95 g and #007 is on the bed
+           in the same size and weight -- identifiable today, not tomorrow.
+           It is also the control experiment: the mirror twin of #007 with
+           the same overhang, and it printed clean with no supports at all.
+  #007  >  printing AT HOME on the X1C, ATTEMPT 3, 2026-09-01.
+           RECIPE: 4-layer raft + max brim + ONE consolidated TREE support.
+           Attempt 1 died on nine needle towers (40:1, collapsed); attempt 2
+           ran ~4 h and let go of the plate. The raft answers attempt 2, the
+           single fat tree answers attempt 1 without the needles.
+           IF THIS COMES OFF CLEAN, that recipe is the answer for every tall
+           low-contact chunk -- see THE TALL-CHUNK RECIPE below.
+  #008     IN HAND at CBA
+  #009     IN HAND at CBA
+  #010  .  not started. Twin of #009 -- the LAST unprinted half of a pair
+           whose other half is already in hand. DO NOT SEND THE STOCK FILE:
+           17.0 cm2 of contact at 223 mm tall is ratio 13.1, numerically
+           identical to #007, and the stock 0.4 file has an 8 mm brim and no
+           raft. Re-slice it with the #007 recipe first.
+  #011     IN HAND at CBA (printed on the 0.6, good part)
+  #012     IN HAND at CBA -- CONFIRMED printed 2026-09-01. Closes the pair
+           with #011: DO THE MIRROR CHECK.
+  #013  ?  was printing on the CBA X1C 08-31, supports ON. NOT CONFIRMED OFF.
+  #014     IN HAND -- PRINTED AND CONFIRMED 2026-09-01 on the HF 0.4 Core
+           One, off the 0.4 stick, good part. The nozzle warning that used to
+           sit here is resolved: the 0.4 file ran on the 0.4 machine. That
+           machine is back from its hardware fault.
+  #015  >  printing on the 0.6 Core One, 2026-09-01. RE-SLICED at 0.6/0.32
+           from PROFILE_0.6n_0.32mm_ASA.ini -- 1h 22m 10s, 44.12 g, 18 mm
+           brim, supports off, no raft (it lies only 67 mm tall on 64.4 cm2).
+           Saved as gcode/015_bow_x0y2z1_0.6n_0.32mm_ASA.bgcode.
+           Mirror twin of #014, which is in hand: PAIR CHECK when it lands.
+           Weight cross-checks: 38 g at 0.4/0.25 x 1.16 = 44.1.
+  #016  ?  was printing on the CBA X1C 08-31, supports ON. NOT CONFIRMED OFF.
+  #031  >  printing on the HF 0.4 Core One, 2026-09-01, stock 0.4 file
+           031_bow_x0y2z2.bgcode -- 3h 48m 38s, 140 g, 11 mm brim, supports
+           off. THE SAFEST PART LEFT: 124.7 cm2 of flat contact at 205 mm
+           tall, ratio 1.6, against 10-14 for everything else in the set.
+           It is the mating half of #032, so when it lands you can finally
+           dry-fit the cracked part and settle that decision.
+           Its twin #030 is NOT printed, so any 226 x 196 x 205 part is #031
+           until it is -- the same trap #032 was in. LABEL IT.
+  #032  !  PRINTED, CONFIRMED 2026-09-01, but WITH CRACKS. See CRACKS ON #032.
+  #015, #017+ .  not started
+
+  ONE UNIDENTIFIED PART. A "small fat triangle" came off the 0.6 Core One on
+  2026-09-01 and has no record. Measure it:
+      38 x 16 x 29 mm, ~2 g   -> it is #018 or #019, which are 2 g mirror
+                                 twins of each other and the only genuinely
+                                 triangular chunks in the set
+      86 x 26 x 74 mm, ~5 g   -> it is #011 or #012, both already in hand
+  Whichever file was sent is the only evidence of which one it is. Write it
+  down before that is gone.
+
+  key:  (blank) done   >  on a plate   ?  believed but unconfirmed
+        .  not printed   !  printed but defective, decision pending
+
+  Two chunks are sitting at "?" -- #013 and #016, both on the CBA X1C --
+  only because nobody has been back to that machine since last night. Clear
+  them before planning anything.
+
+
+THERE ARE TWO USB STICKS  (established 2026-09-01)
+--------------------------------------------------
+ONE STICK PER PRUSA. This is why "one job on the stick" kept looking violated.
+
+  0.6 stick   FAT32, holds 001_..._0.6n_0.32mm_ASA.bgcode (#001, printed)
+              and now 015_..._0.6n_0.32mm_ASA.bgcode. Also carries unrelated
+              qpad_support2 (PLA) and frm-perp-plate (PETG, MK4S).
+  0.4 stick   holds the boat job for the HF 0.4 Core One. #014 printed off
+              it, then #014's file was verified byte-identical to
+              bow_prusa/gcode/ and deleted; 031_bow_x0y2z2.bgcode is on it
+              now. Also carries an unrelated foot-template PETG file.
+
+The rule is ONE BOAT JOB PER STICK, and each stick belongs to one machine.
+Never carry a 0.4 file to the 0.6 or the reverse -- see THE NOZZLE SPLIT.
+
+
+THE NOZZLE SPLIT -- 0.4 AND 0.6 ARE NOT INTERCHANGEABLE
+--------------------------------------------------------
+Everything in bow_prusa/gcode/ is HF 0.4 / 0.25 mm except three files:
+#001, #004 and #011, which carry the _0.6n_0.32mm_ASA suffix -- plus #015,
+sliced 2026-09-01.
+
+A mismatched file DOES NOT PRINT WRONG, IT REFUSES TO START. The profile's
+start G-code emits
+
+    M862.1 P0.6 A0 F0 ; nozzle check
+
+and the Core One halts on that line before the first layer. So a 0.4 file on
+the 0.6 machine is a wasted trip, not a ruined part.
+
+PLACEMENT.txt says "28 chunks ready for a USB stick". That is true only for
+the HF 0.4 machine. For the 0.6, re-slice from
+gcode/PROFILE_0.6n_0.32mm_ASA.ini -- it carries support_material=0,
+binary_gcode=1, 18 mm outer brim, 1 perimeter, 8% gyroid, ASA 275 / bed 110.
+Budget 16% more ASA and about 27% less time than the 0.4 figures.
+
+
+THE TALL-CHUNK RECIPE  (pending #007, 2026-09-01)
+--------------------------------------------------
+Rank what is left by height divided by first-layer contact. #007 failed twice
+at 13.1. Everything unstarted except #030 and #031 sits in that same band:
+
+    #030, #031   124.7 cm2 @ 205 mm   ratio  1.6   <- safe, print freely
+    #033, #036    21.4 cm2 @ 223 mm   ratio 10.4
+    #010          17.0 cm2 @ 223 mm   ratio 13.1   <- IS #007, numerically
+    #037, #040    16.5 cm2 @ 223 mm   ratio 13.6
+
+For anything above ratio ~10, use the #007 attempt-3 recipe: 4-layer raft,
+the widest brim the plate allows, supports otherwise OFF, and if a real
+overhang needs support use ONE consolidated tree, never needle towers.
+
+
+SUPPORTS -- A CORRECTION TO START_HERE.txt
+-------------------------------------------
+START_HERE.txt lists seven chunks as supports-ON: #013, #016, #027, #028,
+#029, #043, #044. THREE OF THOSE ARE WRONG. The analysis counted each
+chunk's FLAT CUT FACE ON THE PLATE as an overhang patch, because it points
+down like one.
+
+  chunk   "big patch"   what it really is
+  #029      162 cm2     the bed-contact face. TRUE overhang 4.19 cm2 in ten
+                        slivers, biggest 1.25 -> SUPPORTS OFF. Its mirror
+                        twin #032 has 2.89 cm2 and printed supports-off fine.
+  #013      64.8 cm2    the bed face. TRUE overhang 10.16 cm2, biggest 4.89.
+  #016      64.9 cm2    the bed face. TRUE overhang 10.13 cm2, biggest 4.89.
+  #027/#028             CORRECT as listed: 0 cm2 on the bed, 23 cm2 of real
+                        consolidated overhang. Leave their G-code alone.
+  #043/#044             CORRECT as listed: 0 cm2 on the bed, 66 cm2 real.
+
+#013 and #016 are on the CBA X1C right now WITH SUPPORTS ON. A 4.89 cm2
+patch makes a ~25 mm tower, which is survivable, so let them finish -- but
+that is what to look at when you get to that machine.
+
+MOST OF THE "OVERHANG" IS INSIDE THE DOWEL BORES. On #007, of 1.54 cm2 of
+downward-facing area above the bed, 1.17 cm2 is the ceilings of horizontal
+4.2 mm dowel bores, scattered from 13 to 218 mm up. Only 0.37 cm2 is real
+open overhang. #006 measures the same.
+
+  SO: IF YOU TURN SUPPORTS ON, SET THEM TO BUILD-PLATE-ONLY. A support set
+  to build everywhere will grow into the dowel bores, and a 4.0 mm dowel in
+  a 4.2 mm hole has 0.2 mm of total clearance. You cannot ream it out --
+  opening the holes obsoletes every chunk on both machines.
+
+
+WHERE THE PARTS ARE  (2026-09-01, evening)
+------------------------------------------
+Still on machines, not in hand: #007 (home X1C), #015 (0.6 Core One), #031
+(HF 0.4 Core One), #013 and #016 (CBA X1C, unconfirmed). Everything else
+printed is in hand. #001, #006 and #014 all landed today.
+
+THE PAIR CHECKS. Hold each pair together: they must be MIRROR images. If a
+pair looks IDENTICAL, you have two of the same chunk and are missing the
+other -- which has already happened once, on #004.
+
+  #001 / #004 / #004   133 x 181 x 205  THE ONE THAT MATTERS. #001 exists as
+                                  of today, so this is finally resolvable.
+                                  #001 must be a MIRROR of both #004s, and
+                                  the two #004s must be IDENTICAL to each
+                                  other. That confirms the duplicate theory
+                                  and frees the spare. If instead one #004
+                                  mirrors the other, one of them was #001
+                                  all along and nothing was ever lost.
+  #002 / #003   223 x 193 x 240   the two biggest.
+  #005 / #008    81 x  90 x 204   the only 81 x 90 pair.
+  #011 / #012    86 x  26 x  74   #011 came off the 0.6 and #012 off the home
+                                  X1C, so this also checks two machines
+                                  against each other.
+  #014 / #015   208 x 178 x  67   as soon as #015 lands. #014 came off the
+                                  HF 0.4 and #015 off the 0.6, so this checks
+                                  the two Prusas against each other.
+  #006 / #007   148 x 240 x 223   as soon as #007 lands. LABEL #006 FIRST --
+                                  until #007 is off the bed, #006 is the only
+                                  part in the house at that size, and after
+                                  that neither is tellable from the other.
+
+  Not checkable yet: #009/#010 (#010 unprinted), #030/#031 (#030 unprinted).
+
+
+DOWELS -- WHICH MACHINE  (decided 2026-09-01)
+---------------------------------------------
+DOWELS ARE PRINTED ON THE X1C. Decided 2026-09-01: they are small, finicky
+parts and the X1C is the proven machine for them.
+
+This does NOT conflict with START_HERE.txt, which asks for dowels on both
+machines. The real requirement is not "print them on the Core One" -- it is
+that a fit measured on one printer is only an assumption on the other. So:
+
+  DRY-FIT AN X1C DOWEL INTO A CORE ONE CHUNK BEFORE ANY GLUE. #014 is the
+  first Core One part, so it is the test coupon. 4.2 mm bore, 4.0 mm dowel,
+  6 mm each side.
+
+  If they bind, do NOT open the holes -- that obsoletes every chunk on both
+  machines. Raise DOWEL_SHRINK in slice_for_print.py and reprint the dowel.
+
+bow_prusa/PLACEMENT.txt still says to print dowels on the Core One. That note
+is superseded by this one.
+
+
+CRACKS ON #032  (found 2026-09-01)
+----------------------------------
+#032 printed to completion but came off the plate with cracks. Extent and
+location NOT yet recorded -- write them down here.
+
+It had the best first-layer contact in the bow (162 cm2) and did NOT lift, so
+this is not an adhesion failure. Cracks in ASA on a part that stuck are almost
+always layer splitting from thermal stress: chamber too cool, or a draft. #032
+is 240 mm on its long side and 205 mm tall, which is where that shows up first.
+
+  BEFORE REPRINTING, decide whether it matters. This chunk gets bonded on every
+  cut face and the hull is glassed inside and out, so a crack that does not
+  cross a dowel bore or a mating face may be structurally irrelevant once it is
+  in the boat. A crack THROUGH a bore or a bond face is not.
+
+  Check: the four cut faces, the six dowel bores, and whether any crack runs
+  full depth. Photograph it either way.
+
+  If it needs reprinting it goes back on the X1C -- #032 is one of the eight
+  bow chunks that fit no way up on the Core One. Raise the chamber temperature
+  and keep the door shut before rerunning it.
+
+  Same exposure applies to its unprinted twin #029 and the other tall 240 mm
+  chunks: #030, #031, #038, #039, #041, #042.
+
+
+THE DUPLICATE #004  (found 2026-09-01)
+--------------------------------------
+Two parts on the shelf that should have been #001 and #004 look the SAME.
+A mirror pair cannot look the same, so both are #004 and #001 was never made.
+
+  RESOLVED-PENDING-CHECK 2026-09-01: #001 has now been printed on the 0.6
+  Core One and is in hand, so this is finally testable rather than theory.
+  Do the three-way check in WHERE THE PARTS ARE. Everything below still
+  stands and is still the reason it happened.
+
+  THERE IS NO MEASUREMENT THAT SEPARATES #001 FROM #004. Checked in the
+  geometry: mirror #001 about the centreline and its bounding box matches
+  #004 to 0.000 mm on all three axes, volume to 0.04%. Calipers, a scale and
+  the manifest all read identical on both. Only HANDEDNESS differs.
+
+  #001 is PORT     (grid x0,y0,z0)   mates #005, #002, #013
+  #004 is STARBOARD (grid x0,y3,z0)  mates #003, #008, #016
+
+  HOW IT PROBABLY HAPPENED: both copies came off the same machine on the same
+  profile, so either the 0.6 ran 004_bow_x0y3z0 twice, or a plate meant to be
+  #001 was loaded with #004's file. Worth knowing which, because the same
+  mistake makes a duplicate that no measurement can ever catch.
+
+  STICK HYGIENE: #004 and #011 were sitting on the USB stick alongside the
+  new #001, with near-identical names and sizes. Printing twice off one stick
+  is the likeliest way the duplicate happened.
+  KEEP ONE JOB ON THE STICK AT A TIME.
+
+  CORRECTION 2026-09-01, stick read directly: the deletion above did NOT
+  happen the way this file claimed. #001 is NOT on the stick, and #011 IS
+  still on it, beside #012 -- a mirror pair, 232552 vs 232587 bytes, which is
+  the exact hazard this note was written about. Both are already printed, and
+  both were verified byte-identical to bow_prusa/gcode/, so they are safe to
+  delete. NOT YET DELETED.
+
+  CLEARED 2026-09-01 10:35. #011 and #012 were re-verified byte-identical to
+  bow_prusa/gcode/ and then deleted from the stick, with their ._ sidecars.
+  The rule now actually holds: ONE BOAT JOB ON THE STICK.
+
+  Stick contents 2026-09-01 10:35:
+    014_bow_x0y1z1.bgcode   1170172   THE JOB. HF 0.4 / 0.25 mm.
+    foot-template_...PETG_COREONE     unrelated, not this boat, left alone
+
+  THE SPARE #004 IS NOT WASTE YET -- do not bin it until #004 is glued in and
+  the pair check on #001 has passed.
+
+  LABEL EVERY CHUNK AS IT LEAVES THE BED from here on. This is the second twin
+  problem in a week (#003 was confirmed 2026-09-01) and it is the only defect on
+  this boat that survives every check in the toolchain: two identical solids
+  are both watertight, both manifest-correct, both perfect prints.
+
+
+THE GAP BELOW #013
+------------------
+SUPERSEDED 2026-09-01 evening -- #001 and #006 both printed and confirmed;
+see AS OF NOW. Only #010 is still open below #013. Historical:
+
+  #001   133 x 181 x 205   122 g   port outer, aft, at the x=60 joint  -> ON THE 0.6
+  #006   148 x 240 x 223    95 g   port inner, second station forward  -> printing
+  #010    91 x 232 x 223    65 g   inboard, third station forward      -> not started
+
+  #006 IS THE MIRROR TWIN OF #007. Same overhang: eight slivers, biggest
+  0.33 cm2, towers up to 214 mm. SUPPORTS OFF or it fails the same way.
+
+CHECK THE MIRROR PAIRS WHEN THE PARTS MEET. #005 and #008 are a pair and you
+have both -- hold them together: they should be MIRROR images. If they are
+identical rather than mirrored, you have two of the same chunk. That is not a
+hypothetical any more; it has now happened once, on #004.
+
+
+THE #007 PROBLEM below.
+  #008     IN HAND at CBA
+  #009     IN HAND at CBA
+  #010  .  not started
+  #011     IN HAND at CBA (printed on the 0.6, good part)
+  #012     SUPERSEDED - printed, see AS OF NOW. (Still true and still
+           worth knowing: the HF 0.4 Core One never started this job.
+           Hardware fault, machine needs work. Nothing wrong with the
+           file or the profile.)
+  #013  >  printing, CBA X1C - SUPPORTS ON
+  #016  >  printing, CBA X1C - SUPPORTS ON
+  #014     SUPERSEDED - queued to the Core One, see AS OF NOW.
+  #015, #017+ .  not started
+  #032     SUPERSEDED - printed with cracks, see AS OF NOW. (Still true:
+           supports OFF, 8 mm brim, no raft needed -- 162 cm2 of flat cut
+           face on the plate, the best first-layer contact in the bow. One
+           of the eight that fit NO WAY UP on the Core One, so the X1C is
+           its only machine, and any reprint goes back on the X1C.)
+  #012     SUPERSEDED - printed, see AS OF NOW. Was moved to the X1C
+           after the HF 0.4 Core One failed to start it.
+
+  key:  (blank) done   >  on a plate   .  not printed
+
+
+THE GAP IS #004 AND #006
+------------------------
+SUPERSEDED -- see AS OF NOW and WHERE THE PARTS ARE. (Historical: resolved
+2026-08-31, when in hand at CBA were #002, #005, #008, #001 was still on the
+bed at home and #003 was believed there but unconfirmed. #003 was confirmed
+2026-09-01.)
+
+Which leaves exactly two holes below #013:
+
+  #004   133 x 181 x 205   122 g   starboard outer, aft, at the x=60 joint
+  #006   148 x 240 x 223    95 g   port inner, second station forward
+
+Plus #010, which was always known to be unstarted. (#003 needed eyes on it and
+got them: confirmed 2026-09-01.)
+
+FILE VERSIONS: every machine is on the refreshed (oriented) set as of 2026-08-31.
+The only exception is #001 at home, which started before the refresh. If you ever
+need to tell the two apart on a running print, use the layer count at 0.24 mm:
+the oriented bow chunks are 850-930 layers, the old ones 340-620. Oriented chunks
+stand tall on a flat cut face; the old ones lie flat and wide on a curve and are
+buried in support.
+
+  #006 IS THE MIRROR TWIN OF #007 -- the chunk that just failed. It has the same
+  overhang: eight slivers, biggest 0.33 cm2, towers up to 214 mm. PRINT IT WITH
+  SUPPORTS OFF or it will fail exactly the same way.
+
+CHECK THE MIRROR PAIRS WHEN THE PARTS MEET. #005 and #008 are a pair, and you
+have both -- hold them together: they should be MIRROR images. If they are
+identical rather than mirrored, you have two of the same chunk and are missing
+the other. As of 2026-09-01 every printed part is at CBA, so #002/#003 and
+#011/#012 can be checked now too -- see WHERE THE PARTS ARE. This is the only cheap way to catch a
+mislabelled twin, and the alternative is finding out at glue-up.
+
+THE #007 PROBLEM
+----------------
+Two failures, two different modes:
+
+  1st  supports collapsed - nine needle towers under 1.5 cm2 of overhang
+       split into nine slivers. Fixed by turning supports off.
+  2nd  ran nearly to the end of ~4 h and let go.
+
+A part that survives four hours and dies at the top is not an overhang
+problem. It is the part coming off the plate. #007 stands 223 mm tall on
+17 cm2 of first-layer contact - ASA shrinks the whole way up, and the peeling
+force at the base grows with height until 17 cm2 is not enough.
+
+Brim cannot fix it. #007 is 240 mm on a 256 mm bed, so 8 mm is the widest
+brim that physically fits, and it already has that.
+
+USE A RAFT FOR ATTEMPT 3. A raft expands only about 2 mm sideways, so it fits
+where a brim cannot, and it lays down the FULL 182 cm2 footprint instead of the
+17 cm2 the curved hull face happens to touch. Ten times the grip, in the same
+bed space. In Bambu Studio that is the raft layer count under Support; leave
+support type off but set raft layers to 4 or so.
+
+Same reasoning applies to any 240 mm chunk that starts letting go:
+#006, #014, #015, #029, #030, #031, #032, #034, #035, #038, #039, #041, #042.
+All of them are brim-capped at 8 mm.
+
+HOW TO IDENTIFY WHAT IS ON THE SHELF
+------------------------------------
+Every chunk in the bottom layer has a MIRROR TWIN of identical size and weight.
+Size tells you which PAIR you are holding; it cannot tell you which of the two.
+For that, look at which way the curve runs -- or just label them as they come
+off the plate from here on, which is cheaper than working it out later.
+
+pair          size mm                   g   where it sits in the boat
+#001 / #004   133 x 181 x 205         122   aft end, outboard, at the x=60 joint
+#002 / #003   223 x 193 x 240         227   aft end, inboard - the two biggest
+#005 / #008    81 x  90 x 204          23   outboard, second station forward
+#006 / #007   148 x 240 x 223          95   inboard, second station forward
+#009 / #010    91 x 232 x 223          65   inboard, third station forward
+#011 / #012    86 x  26 x  74           5   small slivers, unmistakable
+
+#011/#012 are the giveaway: nothing else in the bow is a 26 mm sliver. If you
+cannot find a 5 g part, they are not printed. Likewise #005/#008 are the only
+81 x 90 pair.
+
+Weights are from the model, which runs about 9% under what the slicer reports,
+so a scale will read a little high. Use them to tell 23 g from 227 g, not to
+tell #005 from #008.
+
+
+WHAT TO DO ABOUT #007
+---------------------
+Reprint with supports OFF. Its overhang is 1.5 cm2 in nine slivers, and the
+supports that failed were nine needles up to 218 mm tall. Nothing else about
+the file needs changing, and its 8 mm brim is already the maximum the X1C bed
+allows for a 240 mm part.
+
+The same applies to 37 of the 44 bow chunks. Supports ON for only these seven:
+#013, #016, #027, #028, #029, #043, #044.
+

@@ -1,0 +1,119 @@
+FULL-SIZE BOAT, PRINT SET          refreshed 2026-08-31, two machines
+====================================================================
+
+!! THIS FOLDER WAS REPLACED ON 2026-08-31. Every chunk is now exported standing
+   on the flat face that prints best -- 128 of the 149 moved. The previous copy
+   here was the boat-frame version, and chunks #001 to #006 were printed from
+   it. Those parts are FINE and none of them needs reprinting: the solid is
+   identical either way, only described from a different corner, so the fit and
+   the dowels are unchanged. From #007 on you get the better stance.
+
+   Do not auto-orient in the slicer, and do not rotate a chunk back to look
+   like the boat. The `orient` column in manifest.csv says which boat-frame
+   face is on the plate if you need to work out which way round one goes.
+
+
+ON THE X1C  --  everything
+--------------------------------------------------------------------
+Order: 000_dowel.stl first, then #001 upward. Each folder has a PROFILE.txt
+with that piece's settings. manifest.csv says which chunks each one bonds to.
+
+  000_dowel.stl        784 of them. Batch these.
+  bow/          #001..#044   3.9 kg    51 h    boatASA-8
+  center/       #045..#109   9.2 kg   120 h    boatASA-12 to #092,
+                                               then boatASA-8
+  wedge_stbd/   #110..#129   3.2 kg    41 h    boatASA-8
+  wedge_port/   #130..#149   3.2 kg    41 h    boatASA-8
+                            -------  ------
+                            19.5 kg   253 h    at the Bambu profile's 20 mm3/s
+
+X1C, 0.4 nozzle, ASA at 275 C. STLs are in MILLIMETRES -- import at 100%, do
+not rescale. Brim on everything. Enclosure door shut and the chamber warm
+before the first layer.
+
+Presets: print_profiles/bambu/ in the repo.
+
+Watch #134: 240.7 mm on its longest side against a 240 mm usable bed. It fits,
+with no room for a skirt. Plate that one on its own.
+
+
+ON THE CORE ONE  --  bow_prusa/
+--------------------------------------------------------------------
+30 bow chunks that fit the Prusa's smaller plate, already placed for it.
+~2.2 kg, about 35 h at the Prusa profile's 16 mm3/s cap. boatASA-8
+throughout. Presets: print_profiles/prusa/.
+
+These are the SAME X1C chunks -- same cut, same dowel pattern -- so they bond
+to everything else here exactly as designed. 19 are byte-identical copies out
+of bow/; 11 were turned about Z only, which does not tilt anything, so they
+still stand on the same face with their dowel bores on the same axes.
+
+  Read bow_prusa/PLACEMENT.txt at the machine. It has the settings, the four
+  hard chunks, and the seams that have to stay dry until the X1C catches up.
+
+Eight bow chunks do NOT fit the Core One and stay on the X1C:
+  #013, #016, #029, #032, #038-#039, #041-#042
+
+DO NOT print the same chunk on both machines, and do not run slice_for_print
+with --printer coreone for this boat: that re-cuts the hull on a different
+grid and mates with nothing already printed.
+
+BALANCE. The Prusa profile is capped at 16 mm3/s against the Bambu's 20, so
+giving it 30 of the 38 remaining bow chunks makes the slower machine the
+bottleneck -- 35 h against 15. Moving #043, #044, #030, #031 and #036 back to
+the X1C lands both at about 24 h. Fitting a 0.6 HF nozzle on the Core One
+roughly doubles its cap and settles the question outright.
+
+
+SUPPORTS  --  OFF for almost everything, and this is why
+--------------------------------------------------------------------
+#007 failed on the X1C on 2026-08-31 with its supports collapsing. That was
+not the printer, the filament or the temperature. It was the supports being
+asked to do something impossible.
+
+#007 has 1.5 cm2 of overhang in total, and it is not one patch -- it is NINE
+separate slivers, the biggest 0.32 cm2, spread over 218 mm of height. A slicer
+asked to support that builds nine needles about 5 mm across and up to 218 mm
+tall. At 40:1 they fall over, and when one falls it takes the print with it.
+
+This is not special to #007. Measured over all 44 bow chunks:
+
+  37 chunks   overhang is ONLY sub-2 cm2 slivers, 5 to 12 of them each,
+              towers up to 234 mm tall            ->  SUPPORTS OFF
+   7 chunks   overhang is a real consolidated patch ->  supports ON
+              #013, #016, #027-#029, #043-#044
+
+So: turn supports OFF by default. Switch them on only for those seven.
+
+What you give up by turning them off is 1 to 2 cm2 of slightly saggy underside
+per chunk, in slivers a few millimetres across, on a part whose entire job is
+to be abraded and glassed. What you get back is a print that finishes.
+
+  Reprint #007 with supports off. Nothing else about it needs changing.
+
+The four the Core One is printing with supports (#027, #028, #043, #044) were
+checked against the same measure and they are the good case: their overhang is
+ONE block each -- 23 cm2 of the 23.8 on #027, 51.7 of the 52.4 on #043 -- so
+the support is a broad slab with a real footprint, not a needle. Those G-code
+files are correct as sliced; leave them alone.
+
+WHY THE OVERHANG IS FRAGMENTED. orient_chunks.py picks the stance that
+minimises TOTAL overhang area. It has no notion of whether what is left is one
+supportable block or a scatter of slivers, and on a hull surface the minimum
+usually comes out as a scatter. Minimising the number worked; it just did not
+mean what it looked like it meant.
+
+
+DOWELS
+--------------------------------------------------------------------
+4.2 mm holes for 4.0 mm printed dowels, 6 mm into each side. Print
+000_dowel.stl on BOTH machines and dry-fit both ways before gluing anything:
+a tight fit on one printer is only an assumption on the other.
+
+If they bind, do NOT open the holes -- that obsoletes every chunk on both
+machines. Raise DOWEL_SHRINK in slice_for_print.py and reprint the dowel
+alone. It is the cheap half of the joint.
+
+Abrade and solvent-wipe every mating face. ASA to epoxy is the least forgiving
+bond on the boat.
+

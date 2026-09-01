@@ -1,0 +1,52 @@
+TONIGHT'S PLATE  --  home X1C, started 2026-08-31 evening
+=========================================================
+
+  CLOSED 2026-09-01. Both parts came off and are confirmed in STATUS.txt:
+  #012 good, #032 PRINTED WITH CRACKS. Kept for the identification notes
+  below and as the record of that plate. Historical -- do not plan from it.
+Two parts on one plate. Label them BEFORE they leave the bed.
+Both are STARBOARD-side chunks. Sharpie the number on the inside face.
+
+
+THE BIG ONE  =  #032
+--------------------
+  148 x 240 x 205 mm      ~240 g      999 cm3
+  Where it sits:  aft end, STARBOARD OUTER, TOP layer of the bow
+                  (grid x0, y3, z2 -- x0 is the x=60 joint end)
+  Mates to:       #031, #016, #036
+
+  ITS MIRROR TWIN IS #029 (port outer, top) AND IT IS NOT PRINTED.
+  So right now any 148 x 240 x 205 part in the house is #032. That stops
+  being true the day #029 exists -- which is why you label it tonight.
+  Told apart by which way the hull curve runs; twins are mirrors, not copies.
+
+
+THE SLIVER  =  #012
+-------------------
+  86 x 26 x 74 mm         ~5 g        17 cm3
+  Where it sits:  well forward, STARBOARD INNER, bottom layer
+                  (grid x3, y2, z0)
+  Mates to:       #010, #011, #026
+
+  ITS MIRROR TWIN IS #011 AND IT IS AT CBA, NOT HERE. So the 26 mm sliver
+  on this bed is #012, with no ambiguity -- today. Label it anyway.
+  Nothing else in the bow is a 26 mm sliver, so it cannot be confused with
+  anything except its own twin.
+
+
+IF ONE OF THEM FAILED IN THE NIGHT
+----------------------------------
+  #032 came off the plate     -> raft, 4 layers, supports still OFF.
+                                 It has 162 cm2 of flat contact, the best in
+                                 the bow, so this should NOT happen. If it did,
+                                 suspect the plate surface, not the file.
+  #012 came off               -> it only has 5 cm2 of contact. Wider brim,
+                                 or move it away from the bed edge.
+  Spaghetti over #032         -> check nothing was dragged from #012's corner.
+
+  Neither part has supports. If you see support material in the preview or on
+  the part, the wrong profile got used -- #032 and #012 are both SUPPORTS OFF.
+  (Supports ON is only ever #013, #016, #027, #028, #029, #043, #044.)
+
+
+THEN UPDATE STATUS.txt. It is the only record of what physically exists.
