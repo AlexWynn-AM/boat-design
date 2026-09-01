@@ -107,13 +107,13 @@ The weight model assumes:
 
 - ASA density: 1.07 g/cm3.
 - One 0.5 mm solid perimeter per face.
-- 12% gyroid infill beyond the solid perimeter. Gyroid is specified because the printed material acts as a sandwich core and needs comparatively isotropic shear behaviour.
+- Gyroid infill beyond the solid perimeter, zoned by the design waterplane: 12% below it and 8% above, blended by volume. Only the center is charged the denser rate; the bow and the wedges run at 8% throughout. Gyroid is specified because the printed material acts as a sandwich core and needs comparatively isotropic shear behaviour.
 - Exterior bottom: two layers of 6 oz plain weave, the second at 45 degrees; modelled laminated areal mass 0.8 kg/m2.
 - Exterior topsides and decks: one layer of 6 oz plain weave; 0.4 kg/m2.
 - Center cockpit interior: one layer of 6 oz plain weave; 0.4 kg/m2. The sealed wedge interiors and bow-storage interior are not included in the interior-glass schedule.
 - Approximately 50% fibre fraction after wet-out, giving 0.40 kg/m2 laminated mass for one 203 g/m2 dry layer.
 
-The current calculation reports a 29.1 kg (64 lb) total, comprising a 13.8 kg center, two 4.8 kg wedges, and a 5.8 kg bow. The estimate comes from mesh volume, surface classification, perimeter, infill, and glass schedule. Slicer settings and the finished laminate control the real mass.
+The current calculation reports a 25.6 kg (56 lb) total, comprising a 12.6 kg center, two 4.0 kg wedges, and a 4.9 kg bow. That splits into 19.5 kg (43 lb) of ASA and 6.0 kg (13 lb) of laminate. The estimate comes from mesh volume, surface classification, perimeter, infill, and glass schedule. Slicer settings and the finished laminate control the real mass.
 
 For a beaching boat, the source recommends a local third 6 oz strip, or graphite/epoxy, along the keel and chines instead of increasing the entire bottom laminate. That local reinforcement is estimated in the comment as about 0.2 kg and is not included in the model. The specified schedule assumes epoxy. The comments explicitly reject the chopped-strand mat in 1708 for epoxy; if changing to polyester or vinylester, restore mat appropriate to that resin system.
 

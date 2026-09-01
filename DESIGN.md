@@ -109,10 +109,11 @@ The weight estimate operates on the scaled real meshes. ASA material is divided 
 
 ```text
 solid perimeter volume = min(mesh volume, mesh area * 0.5 mm)
-infill volume          = max(0, mesh volume - perimeter volume) * 0.12
+core volume            = max(0, mesh volume - perimeter volume)
+infill volume          = core volume * (0.12 below the waterplane / 0.08 above)
 ```
 
-Both use an ASA density of 1.07 g/cm3. The calculation models slicer behaviour; it does not treat every generated 7 or 14 mm wall as solid.
+The infill rate is zoned by the design waterplane and applied as a volume-weighted blend of the two rates. Only the pieces named in `INFILL_ZONED` (currently the center alone) earn the denser 12% core; the bow and the wedges run at 8% throughout, because both are narrow and doubly curved end to end. Both terms use an ASA density of 1.07 g/cm3. The calculation models slicer behaviour; it does not treat every generated 7 or 14 mm wall as solid.
 
 Face normals, triangle centroids, and height divide surface area into exterior bottom, exterior topside, deck, and optional interior zones. Bottom is charged at 0.8 kg/m2 laminated mass; topside, deck, and included interior at 0.4 kg/m2. Only the center receives the interior-glass charge. The zone classifier is deliberately described in code as rough.
 
@@ -120,13 +121,13 @@ The present result is:
 
 | Piece | Perimeter ASA | Infill ASA | Glass | Total |
 | --- | ---: | ---: | ---: | ---: |
-| Center | 3.7 kg | 6.7 kg | 3.4 kg | 13.8 kg |
-| Starboard wedge | 1.6 kg | 2.3 kg | 0.8 kg | 4.8 kg |
-| Port wedge | 1.6 kg | 2.3 kg | 0.8 kg | 4.8 kg |
-| Bow | 2.2 kg | 2.6 kg | 1.0 kg | 5.8 kg |
-| Total |  |  |  | 29.1 kg / 64 lb |
+| Center | 3.7 kg | 5.5 kg | 3.4 kg | 12.6 kg |
+| Starboard wedge | 1.6 kg | 1.5 kg | 0.8 kg | 4.0 kg |
+| Port wedge | 1.6 kg | 1.5 kg | 0.8 kg | 4.0 kg |
+| Bow | 2.2 kg | 1.7 kg | 1.0 kg | 4.9 kg |
+| Total | 9.2 kg | 10.3 kg | 6.0 kg | 25.6 kg / 56 lb |
 
-At that estimated bare-hull weight, the static level waterplane is 1.51 in real.
+That is 19.5 kg (43 lb) of ASA and 6.0 kg (13 lb) of laminate. At that estimated bare-hull weight, the static level waterplane is 1.37 in real.
 
 ## Mesh verification
 
