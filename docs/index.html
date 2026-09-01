@@ -18,6 +18,7 @@
       <a href="#joint">Joint</a>
       <a href="#print">Printing</a>
       <a href="#spec">Specification</a>
+      <a href="chunks.html">Chunks</a>
       <a href="design.html">Engineering</a>
       <a href="reference.html">Reference</a>
       <a href="https://github.com/AlexWynn-AM/boat-design">GitHub</a>
@@ -35,7 +36,7 @@
     <div class="hero-art"><img src="assets/hero.png" alt="The assembled hull, starboard bow quarter" width="1000"></div>
     <div class="hero-meta">
       <span>97.2 in LOA</span><span>61 in beam</span><span>4 pieces</span>
-      <span>149 printed chunks</span><span>64 lb modelled</span>
+      <span>149 printed chunks</span><span>56 lb modelled</span>
     </div>
   </div>
 </div>
@@ -90,13 +91,13 @@
       <table>
         <thead><tr><th>Piece</th><th>Size, real</th><th>Modelled mass</th><th>Role</th></tr></thead>
         <tbody>
-          <tr><td><code>center</code></td><td>54.0 × 41.4 × 21.9 in</td><td>13.8 kg</td>
+          <tr><td><code>center</code></td><td>54.0 × 41.4 × 21.9 in</td><td>12.6 kg</td>
               <td>Open barge from transom to split. Floats and carries load on its own.</td></tr>
-          <tr><td><code>wedge_stbd</code></td><td>53.8 × 11.7 × 19.0 in</td><td>4.8 kg</td>
+          <tr><td><code>wedge_stbd</code></td><td>53.8 × 11.7 × 19.0 in</td><td>4.0 kg</td>
               <td>Sealed buoyancy pod carrying the outer skin and beam.</td></tr>
-          <tr><td><code>wedge_port</code></td><td>53.8 × 11.7 × 19.0 in</td><td>4.8 kg</td>
+          <tr><td><code>wedge_port</code></td><td>53.8 × 11.7 × 19.0 in</td><td>4.0 kg</td>
               <td>Mirror of the starboard pod.</td></tr>
-          <tr><td><code>bow</code></td><td>43.9 × 37.8 × 22.8 in</td><td>5.8 kg</td>
+          <tr><td><code>bow</code></td><td>43.9 × 37.8 × 22.8 in</td><td>4.9 kg</td>
               <td>Hollow nose with a domed aft storage opening.</td></tr>
         </tbody>
       </table>
@@ -222,7 +223,9 @@ uv pip install numpy trimesh matplotlib manifold3d pymeshfix rtree
       <p>Every run re-verifies the geometry: watertightness at design and export scale, the bow
       drop-in sweep, the buoyancy-pod seal, and the height of every bolt above the derived waterline.
       The <a href="design.html">engineering notes</a> describe what each check is for and why it
-      exists, and the <a href="reference.html">reference</a> covers parameters and outputs.</p>
+      exists, and the <a href="reference.html">reference</a> covers parameters and outputs.
+      The <a href="chunks.html">chunk assembly guide</a> maps every numbered piece to its place
+      in the hull, what it bonds to, and how to tell mirror twins apart.</p>
     </div>
   </div>
 </section>

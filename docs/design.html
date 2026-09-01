@@ -18,6 +18,7 @@
       <a href="./#joint">Joint</a>
       <a href="./#print">Printing</a>
       <a href="./#spec">Specification</a>
+      <a href="chunks.html">Chunks</a>
       <a href="design.html" aria-current="page">Engineering</a>
       <a href="reference.html">Reference</a>
       <a href="https://github.com/AlexWynn-AM/boat-design">GitHub</a>
@@ -299,10 +300,15 @@ calculation assumes upright static flotation and level trim. It reports
 <p>The weight estimate operates on the scaled real meshes. ASA material
 is divided into:</p>
 <pre class="text"><code>solid perimeter volume = min(mesh volume, mesh area * 0.5 mm)
-infill volume          = max(0, mesh volume - perimeter volume) * 0.12</code></pre>
-<p>Both use an ASA density of 1.07 g/cm3. The calculation models slicer
-behaviour; it does not treat every generated 7 or 14 mm wall as
-solid.</p>
+core volume            = max(0, mesh volume - perimeter volume)
+infill volume          = core volume * (0.12 below the waterplane / 0.08 above)</code></pre>
+<p>The infill rate is zoned by the design waterplane and applied as a
+volume-weighted blend of the two rates. Only the pieces named in
+<code>INFILL_ZONED</code> (currently the center alone) earn the denser
+12% core; the bow and the wedges run at 8% throughout, because both are
+narrow and doubly curved end to end. Both terms use an ASA density of
+1.07 g/cm3. The calculation models slicer behaviour; it does not treat
+every generated 7 or 14 mm wall as solid.</p>
 <p>Face normals, triangle centroids, and height divide surface area into
 exterior bottom, exterior topside, deck, and optional interior zones.
 Bottom is charged at 0.8 kg/m2 laminated mass; topside, deck, and
@@ -324,42 +330,43 @@ code as rough.</p>
 <tr>
 <td>Center</td>
 <td style="text-align: right;">3.7 kg</td>
-<td style="text-align: right;">6.7 kg</td>
+<td style="text-align: right;">5.5 kg</td>
 <td style="text-align: right;">3.4 kg</td>
-<td style="text-align: right;">13.8 kg</td>
+<td style="text-align: right;">12.6 kg</td>
 </tr>
 <tr>
 <td>Starboard wedge</td>
 <td style="text-align: right;">1.6 kg</td>
-<td style="text-align: right;">2.3 kg</td>
+<td style="text-align: right;">1.5 kg</td>
 <td style="text-align: right;">0.8 kg</td>
-<td style="text-align: right;">4.8 kg</td>
+<td style="text-align: right;">4.0 kg</td>
 </tr>
 <tr>
 <td>Port wedge</td>
 <td style="text-align: right;">1.6 kg</td>
-<td style="text-align: right;">2.3 kg</td>
+<td style="text-align: right;">1.5 kg</td>
 <td style="text-align: right;">0.8 kg</td>
-<td style="text-align: right;">4.8 kg</td>
+<td style="text-align: right;">4.0 kg</td>
 </tr>
 <tr>
 <td>Bow</td>
 <td style="text-align: right;">2.2 kg</td>
-<td style="text-align: right;">2.6 kg</td>
+<td style="text-align: right;">1.7 kg</td>
 <td style="text-align: right;">1.0 kg</td>
-<td style="text-align: right;">5.8 kg</td>
+<td style="text-align: right;">4.9 kg</td>
 </tr>
 <tr>
 <td>Total</td>
-<td style="text-align: right;"></td>
-<td style="text-align: right;"></td>
-<td style="text-align: right;"></td>
-<td style="text-align: right;">29.1 kg / 64 lb</td>
+<td style="text-align: right;">9.2 kg</td>
+<td style="text-align: right;">10.3 kg</td>
+<td style="text-align: right;">6.0 kg</td>
+<td style="text-align: right;">25.6 kg / 56 lb</td>
 </tr>
 </tbody>
 </table>
-<p>At that estimated bare-hull weight, the static level waterplane is
-1.51 in real.</p>
+<p>That is 19.5 kg (43 lb) of ASA and 6.0 kg (13 lb) of laminate. At
+that estimated bare-hull weight, the static level waterplane is 1.37 in
+real.</p>
 <h2 id="mesh-verification">Mesh verification</h2>
 <p>The main program performs checks after all hollowing, unions, keys,
 and bolt cuts:</p>

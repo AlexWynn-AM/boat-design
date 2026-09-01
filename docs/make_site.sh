@@ -5,7 +5,8 @@
 #
 # index.html is hand-authored and is NOT touched here. design.html and reference.html are
 # generated from DESIGN.md and README.md so the site cannot drift from the source docs:
-# edit the Markdown at the repo root, then re-run this.
+# edit the Markdown at the repo root, then re-run this. chunks.html is generated straight
+# from the manifest and the STLs by render_chunk_map.py -- edit that, not the page.
 set -eu
 cd "$(dirname "$0")/.."
 REPO=https://github.com/AlexWynn-AM/boat-design/blob/main
@@ -34,4 +35,13 @@ render() {   # render <source.md> <out.html> <title> <flag>
 echo "Rendering site:"
 render DESIGN.md design.html    "Engineering design"       is-design
 render README.md reference.html "Reference"                is-reference
+
+# chunks.html is not Markdown: it is built from split_out/print_sections_x1c/manifest.csv
+# and the chunk geometry, so it cannot drift from the parts it documents.
+if [ -x .venv/bin/python ]; then
+  .venv/bin/python render_chunk_map.py
+else
+  echo "  skipped docs/chunks.html (no .venv; run: .venv/bin/python render_chunk_map.py)"
+fi
+
 echo "Done. Preview with:  python3 -m http.server -d docs 8000"
